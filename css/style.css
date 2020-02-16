@@ -114,8 +114,8 @@ button::-moz-focus-inner {
   font-family: FontAwesome;
   font-style: normal;
   font-weight: normal;
-  src: url("fonts/fontawesome-webfont.eot?v=#4.0.3");
-  src: url("fonts/fontawesome-webfont.eot?#iefix&v=#4.0.3") format("embedded-opentype"), url("fonts/fontawesome-webfont.woff?v=#4.0.3") format("woff"), url("fonts/fontawesome-webfont.ttf?v=#4.0.3") format("truetype"), url("fonts/fontawesome-webfont.svg#fontawesomeregular?v=#4.0.3") format("svg");
+  src: url("fonts/fontawesome-webfont.eot?v=#4.7.0");
+  src: url("fonts/fontawesome-webfont.eot?#iefix&v=#4.7.0") format("embedded-opentype"), url("fonts/fontawesome-webfont.woff?v=#4.7.0") format("woff"), url("fonts/fontawesome-webfont.ttf?v=#4.7.0") format("truetype"), url("fonts/fontawesome-webfont.svg#fontawesomeregular?v=#4.7.0") format("svg");
 }
 html,
 body,
@@ -124,7 +124,7 @@ body,
 }
 body {
   background: #eee;
-  font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font: 14px "Helvetica Neue", "Helvetica", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans CN", "WenQuanYi Micro Hei", Arial, sans-serif;
   -webkit-text-size-adjust: 100%;
 }
 .outer {
@@ -482,7 +482,7 @@ body {
   background: none;
   color: #555;
   width: 100%;
-  font: 13px -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font: 13px "Helvetica Neue", "Helvetica", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans CN", "WenQuanYi Micro Hei", Arial, sans-serif;
   outline: none;
 }
 .search-form-input::-webkit-search-results-decoration,
@@ -631,7 +631,7 @@ a.article-title:hover {
 .article-entry blockquote footer {
   font-size: 14px;
   margin: 1.6em 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-family: "Helvetica Neue", "Helvetica", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans CN", "WenQuanYi Micro Hei", Arial, sans-serif;
 }
 .article-entry blockquote footer cite:before {
   content: "—";
@@ -836,7 +836,7 @@ a.article-title:hover {
   -webkit-box-sizing: border-box;
   -moz-box-sizing: border-box;
   box-sizing: border-box;
-  font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font: 14px "Helvetica Neue", "Helvetica", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans CN", "WenQuanYi Micro Hei", Arial, sans-serif;
   padding: 0 15px;
   color: #555;
   outline: none;
@@ -856,6 +856,10 @@ a.article-title:hover {
 .article-share-links:after {
   clear: both;
 }
+.article-share-sina,
+.article-share-qq,
+.article-share-renren,
+.article-share-tencent,
 .article-share-twitter,
 .article-share-facebook,
 .article-share-pinterest,
@@ -868,6 +872,10 @@ a.article-title:hover {
   color: #999;
   text-shadow: 0 1px #fff;
 }
+.article-share-sina:before,
+.article-share-qq:before,
+.article-share-renren:before,
+.article-share-tencent:before,
 .article-share-twitter:before,
 .article-share-facebook:before,
 .article-share-pinterest:before,
@@ -883,11 +891,43 @@ a.article-title:hover {
   margin-left: -10px;
   text-align: center;
 }
+.article-share-sina:hover,
+.article-share-qq:hover,
+.article-share-renren:hover,
+.article-share-tencent:hover,
 .article-share-twitter:hover,
 .article-share-facebook:hover,
 .article-share-pinterest:hover,
 .article-share-google:hover {
   color: #fff;
+}
+.article-share-sina:before {
+  content: "\f18a";
+}
+.article-share-sina:hover {
+  background: #ea0020;
+  text-shadow: 0 1px #bb001a;
+}
+.article-share-qq:before {
+  content: "\f1d6";
+}
+.article-share-qq:hover {
+  background: #518adb;
+  text-shadow: 0 1px #296ac7;
+}
+.article-share-renren:before {
+  content: "\f18b";
+}
+.article-share-renren:hover {
+  background: #406ccb;
+  text-shadow: 0 1px #2e54a8;
+}
+.article-share-tencent:before {
+  content: "\f1d5";
+}
+.article-share-tencent:hover {
+  background: #33b5eb;
+  text-shadow: 0 1px #1499d0;
 }
 .article-share-twitter:before {
   content: "\f099";
@@ -1110,7 +1150,7 @@ a.article-title:hover {
 }
 .article-entry pre,
 .article-entry code {
-  font-family: "Source Code Pro", Consolas, Monaco, Menlo, Consolas, monospace;
+  font-family: Consolas, Monaco, Menlo, monospace;
 }
 .article-entry code {
   background: #eee;
@@ -1172,7 +1212,7 @@ a.article-title:hover {
 }
 .article-entry .gist .gist-file {
   border: none;
-  font-family: "Source Code Pro", Consolas, Monaco, Menlo, Consolas, monospace;
+  font-family: Consolas, Monaco, Menlo, monospace;
   margin: 0;
 }
 .article-entry .gist .gist-file .gist-data {
@@ -1195,7 +1235,7 @@ a.article-title:hover {
 .article-entry .gist .gist-file .gist-meta {
   background: #2d2d2d;
   color: #999;
-  font: 0.85em -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font: 0.85em "Helvetica Neue", "Helvetica", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans CN", "WenQuanYi Micro Hei", Arial, sans-serif;
   text-shadow: 0 0;
   padding: 0;
   margin-top: 1em;
