@@ -1,6 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <search>
   <entry>
+    <title>makefile文件编写</title>
+    <url>/2020/02/20/makefile%E6%96%87%E4%BB%B6%E7%BC%96%E5%86%99/</url>
+    <content><![CDATA[<h2 id="Ver1"><a href="#Ver1" class="headerlink" title="Ver1"></a>Ver1</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">proc : ex-1.o list.o bitree.o traverse.o </span><br><span class="line">	gcc -g -Wall -o proc ex-1.o list.o bitree.o traverse.o</span><br><span class="line">ex-1.o : ex-1.c bitree.h traverse.h</span><br><span class="line">	gcc -g -Wall -c ex-1.c</span><br><span class="line">list.o : list.c list.h</span><br><span class="line">	gcc -g -Wall -c list.c</span><br><span class="line">bitree.o : bitree.c bitree.h</span><br><span class="line">	gcc -g -Wall -c bitree.c</span><br><span class="line">traverse.o : traverse.c list.h traverse.h</span><br><span class="line">	gcc -g -Wall -c traverse.c</span><br><span class="line">clean :</span><br><span class="line">	rm proc ex-1.o list.o bitree.o traverse.o <span class="comment">#对齐必须用TAB，否则就报错。</span></span><br></pre></td></tr></table></figure>
+<a id="more"></a> 
+<h2 id="Ver2"><a href="#Ver2" class="headerlink" title="Ver2"></a>Ver2</h2><p>设置变量简化程序</p>
+<figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">	objects= ex-1.o list.o bitree.o traverse.o</span><br><span class="line">	proc :$(objects)</span><br><span class="line">	gcc -g -Wall -o proc $(objects)</span><br><span class="line">	<span class="comment">#make识别一个.o文件会自动对应.c文件，并推导相关编译命令。</span></span><br><span class="line">ex-1.o :bitree.h traverse.h</span><br><span class="line">list.o :list.h</span><br><span class="line">bitree.o : bitree.h</span><br><span class="line">traverse.o : list.h traverse.h</span><br><span class="line">	.PHONY : clean</span><br><span class="line">clean:</span><br><span class="line">	rm proc $(objects)</span><br></pre></td></tr></table></figure>
+<h2 id="Ver3"><a href="#Ver3" class="headerlink" title="Ver3"></a>Ver3</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">CC= gcc</span><br><span class="line">CFLAGS= -g -Wall -Iinclude -Isrc</span><br><span class="line"><span class="comment">#必须要写-Iinclude -Isrc表示路径在哪里不然找不到文件哦</span></span><br><span class="line">TARGET= bitree</span><br><span class="line">DIRS= include src  ./</span><br><span class="line">FILES= $(foreach dir, $(DIRS), $(wildcard $(dir)/*.c))</span><br><span class="line"><span class="comment">#$(wildcard $(dir)/*.c)取出目录include src和当前目录中所有扩展名为.c的源文件</span></span><br><span class="line"><span class="comment">#$(foreach dir, $(DIRS)循环将DIRS字符串中一个空格分割的单词先传给临时变量dir</span></span><br><span class="line"><span class="comment">#然后执行第三个表达式，返回值是其计算结果。</span></span><br><span class="line">OBJS=$(patsubst %.c, %.o, $(FILES))</span><br><span class="line"><span class="comment">#输出字符串当前扩展名为.c的文件替换成.o文件列表</span></span><br><span class="line"><span class="comment">#$(OBJS):%.o:%.c中 %.o:%.c是将$(OBJS)中以.o结尾的文件替换成以.c结尾的文件。</span></span><br><span class="line"><span class="comment">#其中$&lt;和$@是自动化变量,$&lt;和$@分别代表依赖项和目标项。</span></span><br><span class="line">$(TARGET):$(OBJS)</span><br><span class="line">	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS)</span><br><span class="line"></span><br><span class="line">$(OBJS):%o:%c</span><br><span class="line">	$(CC) -c $&lt; -o <span class="variable">$@</span> $(CFLAGS)</span><br><span class="line"></span><br><span class="line">clean:</span><br><span class="line">	-$(RM) $(TARGET)</span><br><span class="line">	-$(RM) $(OBJS)</span><br></pre></td></tr></table></figure>]]></content>
+      <categories>
+        <category>编程</category>
+      </categories>
+      <tags>
+        <tag>linux</tag>
+        <tag>makefile</tag>
+        <tag>C</tag>
+      </tags>
+  </entry>
+  <entry>
     <title>Ansys10多机并行计算测试</title>
     <url>/2020/02/20/ansys10%E5%A4%9A%E6%9C%BA%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/</url>
     <content><![CDATA[<h3 id="batch模式"><a href="#batch模式" class="headerlink" title="batch模式"></a>batch模式</h3><p>ANSYS的批处理是区别于GUI界面执行有限元分析过程的方式，通过批处理执行分析过程不用显式模型的相关情况，只会在后台运行，因而避免了用于可视化显式的相关资源的应用，速度相对来说比在GUI界面完成要快。而且批处理更大的好处是可以通过第三方软件或者编写的程序自动执行批处理过程，在二次开发中用的比较多。ansys10的并行计算只能在batch模式下进行。须建立一个后缀名为bat的批处理文件，然后通个这个批处理文件运行ansys并计算。如：parallel.bat。</p>
