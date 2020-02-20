@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+<meta name="generator" content="Hexo 4.2.0">
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png">
+  <link rel="mask-icon" href="/images/logo.svg" color="#222">
+
+<link rel="stylesheet" href="/css/main.css">
+
+
+<link rel="stylesheet" href="/lib/font-awesome/css/font-awesome.min.css">
+
+<script id="hexo-configurations">
+    var NexT = window.NexT || {};
+    var CONFIG = {"hostname":"liyico.github.io","root":"/","scheme":"Pisces","version":"7.7.1","exturl":false,"sidebar":{"position":"left","display":"post","padding":18,"offset":12,"onmobile":false},"copycode":{"enable":false,"show_result":false,"style":null},"back2top":{"enable":true,"sidebar":false,"scrollpercent":false},"bookmark":{"enable":false,"color":"#222","save":"auto"},"fancybox":false,"mediumzoom":false,"lazyload":false,"pangu":false,"comments":{"style":"tabs","active":null,"storage":true,"lazyload":false,"nav":null},"algolia":{"hits":{"per_page":10},"labels":{"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}},"localsearch":{"enable":true,"trigger":"auto","top_n_per_article":1,"unescape":false,"preload":false},"motion":{"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},"path":"search.xml"};
+  </script>
+
+  <meta name="description" content="batch模式ANSYS的批处理是区别于GUI界面执行有限元分析过程的方式，通过批处理执行分析过程不用显式模型的相关情况，只会在后台运行，因而避免了用于可视化显式的相关资源的应用，速度相对来说比在GUI界面完成要快。而且批处理更大的好处是可以通过第三方软件或者编写的程序自动执行批处理过程，在二次开发中用的比较多。ansys10的并行计算只能在batch模式下进行。须建立一个后缀名为bat的批处理文">
+<meta property="og:type" content="article">
+<meta property="og:title" content="Ansys10多机并行计算测试">
+<meta property="og:url" content="liyico.github.io/2020/02/16/ansys10%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/index.html">
+<meta property="og:site_name" content="Nico&#39;s Blog">
+<meta property="og:description" content="batch模式ANSYS的批处理是区别于GUI界面执行有限元分析过程的方式，通过批处理执行分析过程不用显式模型的相关情况，只会在后台运行，因而避免了用于可视化显式的相关资源的应用，速度相对来说比在GUI界面完成要快。而且批处理更大的好处是可以通过第三方软件或者编写的程序自动执行批处理过程，在二次开发中用的比较多。ansys10的并行计算只能在batch模式下进行。须建立一个后缀名为bat的批处理文">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2020-02-16T08:57:29.304Z">
+<meta property="article:modified_time" content="2020-02-20T13:08:38.421Z">
+<meta property="article:author" content="Nico">
+<meta property="article:tag" content="并行计算">
+<meta property="article:tag" content="ansys">
+<meta name="twitter:card" content="summary">
+
+<link rel="canonical" href="liyico.github.io/2020/02/16/ansys10%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/">
+
+
+<script id="page-configurations">
+  // https://hexo.io/docs/variables.html
+  CONFIG.page = {
+    sidebar: "",
+    isHome: false,
+    isPost: true
+  };
+</script>
+
+  <title>Ansys10多机并行计算测试 | Nico's Blog</title>
+  
+
+
+
+
+
+
+  <noscript>
+  <style>
+  .use-motion .brand,
+  .use-motion .menu-item,
+  .sidebar-inner,
+  .use-motion .post-block,
+  .use-motion .pagination,
+  .use-motion .comments,
+  .use-motion .post-header,
+  .use-motion .post-body,
+  .use-motion .collection-header { opacity: initial; }
+
+  .use-motion .site-title,
+  .use-motion .site-subtitle {
+    opacity: initial;
+    top: initial;
+  }
+
+  .use-motion .logo-line-before i { left: initial; }
+  .use-motion .logo-line-after i { right: initial; }
+  </style>
+</noscript>
+
+<link rel="alternate" href="/atom.xml" title="Nico's Blog" type="application/atom+xml">
+</head>
+
+<body itemscope itemtype="http://schema.org/WebPage">
+  <div class="container use-motion">
+    <div class="headband"></div>
+
+    <header class="header" itemscope itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-container">
+  <div class="site-nav-toggle">
+    <div class="toggle" aria-label="切换导航栏">
+      <span class="toggle-line toggle-line-first"></span>
+      <span class="toggle-line toggle-line-middle"></span>
+      <span class="toggle-line toggle-line-last"></span>
+    </div>
+  </div>
+
+  <div class="site-meta">
+
+    <div>
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">Nico's Blog</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+  </div>
+
+  <div class="site-nav-right"></div>
+</div>
+
+
+<nav class="site-nav">
+  
+  <ul id="menu" class="menu">
+        <li class="menu-item menu-item-home">
+
+    <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
+
+  </li>
+        <li class="menu-item menu-item-tags">
+
+    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签</a>
+
+  </li>
+        <li class="menu-item menu-item-categories">
+
+    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类</a>
+
+  </li>
+        <li class="menu-item menu-item-archives">
+
+    <a href="/archives/" rel="section"><i class="fa fa-fw fa-archive"></i>归档</a>
+
+  </li>
+      <li class="menu-item menu-item-search">
+        <a role="button" class="popup-trigger"><i class="fa fa-search fa-fw"></i>搜索
+        </a>
+      </li>
+  </ul>
+
+</nav>
+  <div class="site-search">
+    <div class="popup search-popup">
+    <div class="search-header">
+  <span class="search-icon">
+    <i class="fa fa-search"></i>
+  </span>
+  <div class="search-input-container">
+    <input autocomplete="off" autocorrect="off" autocapitalize="off"
+           placeholder="搜索..." spellcheck="false"
+           type="search" class="search-input">
+  </div>
+  <span class="popup-btn-close">
+    <i class="fa fa-times-circle"></i>
+  </span>
+</div>
+<div id="search-result"></div>
+
+</div>
+<div class="search-pop-overlay"></div>
+
+  </div>
+</div>
+    </header>
+
+    
+  <div class="back-to-top">
+    <i class="fa fa-arrow-up"></i>
+    <span>0%</span>
+  </div>
+
+
+    <main class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+
+          <div class="content">
+            
+
+  <div class="posts-expand">
+      
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block " lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="liyico.github.io/2020/02/16/ansys10%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Nico">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Nico's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          Ansys10多机并行计算测试
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-02-16 16:57:29" itemprop="dateCreated datePublished" datetime="2020-02-16T16:57:29+08:00">2020-02-16</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-02-20 21:08:38" itemprop="dateModified" datetime="2020-02-20T21:08:38+08:00">2020-02-20</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/CAE/" itemprop="url" rel="index">
+                    <span itemprop="name">CAE</span>
+                  </a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+        <h3 id="batch模式"><a href="#batch模式" class="headerlink" title="batch模式"></a>batch模式</h3><p>ANSYS的批处理是区别于GUI界面执行有限元分析过程的方式，通过批处理执行分析过程不用显式模型的相关情况，只会在后台运行，因而避免了用于可视化显式的相关资源的应用，速度相对来说比在GUI界面完成要快。而且批处理更大的好处是可以通过第三方软件或者编写的程序自动执行批处理过程，在二次开发中用的比较多。ansys10的并行计算只能在batch模式下进行。须建立一个后缀名为bat的批处理文件，然后通个这个批处理文件运行ansys并计算。如：parallel.bat。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">"C:\Program Files\Ansys Inc\v100\ANSYS\bin\Intel\ansys100.exe"</span>  -p ANSYS -dir <span class="string">"D:\answork"</span> -j <span class="string">"file"</span> -pp -s <span class="built_in">read</span> -mpi MPICH -dis -machines apple:2:lee:1 -l en-us -b -i <span class="string">"D:\answork\runtime.txt"</span> -o <span class="string">"D:\answork\runtime.out"</span></span><br></pre></td></tr></table></figure>
+<a id="more"></a>
+<p>其内容可由laucher中的tools/dispaly command line 获得。先在lauch里选好“parallel performance for ansys”。在customization中的additional parameters 后填写 -i”g:\test\runtime.txt”-o “ g:\test\runtime.out””,”g:\test\runtime.txt”是你的命令。流文件，”g:\test\runtime.out”是运行后生成的文件。在sover setup里选好”run distributed ansys”，MPI type选”MPICH”。下面的框框里选“use multiple hosts”,并加好hosts,这时点tools/display commmand line,将command line里的字全部copy到一个bat文件中。注意一定要把其中“…dis -mpi mpich…”改为“…-mpi MPICH -dis…”否则一闪而过，不会进行计算，前面说的不能以ＧＵＩ方式运行“run distributed ansys”，就是这种一闪而过的症状。</p>
+<h3 id="测试代码"><a href="#测试代码" class="headerlink" title="测试代码"></a>测试代码</h3><p>runtime.txt</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line">/prep7</span><br><span class="line">/title,parallel performance <span class="keyword">for</span> ansys</span><br><span class="line">antype,static</span><br><span class="line">L=8</span><br><span class="line">B=0.5</span><br><span class="line">H=0.5</span><br><span class="line">LE=2.5E-2</span><br><span class="line">E=200E9</span><br><span class="line">V=0.3</span><br><span class="line">et,1,solid45</span><br><span class="line">mp,ex,1,e</span><br><span class="line">mp,nuxy,1,v</span><br><span class="line">mp,dens,1,7850</span><br><span class="line">block,0,L,0,B,0,H</span><br><span class="line">lesize,all,LE</span><br><span class="line">vmes,all</span><br><span class="line">nsel,s,loc,x,0</span><br><span class="line">nsel,r,loc,z,0</span><br><span class="line">nsel,r,loc,y,0</span><br><span class="line">d,all,all,0</span><br><span class="line">allsel,all</span><br><span class="line">nsel,s,loc,x,0</span><br><span class="line">nsel,r,loc,z,H</span><br><span class="line">nsel,r,lco,y,0</span><br><span class="line">d,all,all,0</span><br><span class="line">allsel,all</span><br><span class="line">nsel,s,loc,x,l</span><br><span class="line">nsel,r,loc,z,0</span><br><span class="line">nsel,r,loc,y,0</span><br><span class="line">d,all,all,0</span><br><span class="line">allsel,all</span><br><span class="line">nsel,s,loc,x,L</span><br><span class="line">nsel,r,loc,z,H</span><br><span class="line">nsel,r,loc,y,0</span><br><span class="line">d,all,all,0</span><br><span class="line">allsel,all</span><br><span class="line"></span><br><span class="line">/solu</span><br><span class="line">eqslv,dpcg</span><br><span class="line">dsopt,script,auto</span><br><span class="line">dsproc,3</span><br></pre></td></tr></table></figure>
+<h3 id="计算效率对比"><a href="#计算效率对比" class="headerlink" title="计算效率对比"></a>计算效率对比</h3><p>根据计算结果分析，如模型不复杂，单机就已经很快，因为通信也需要花掉很多时间。计算时要关闭超线程。据说smp并行模式8-16核并行效率较高，我的机器只有双核这方面没有测试。此外mpp并行效率还和网格区域分解策略有关，具体要看模型。</p>
+<pre><code>CP time = CPU 计算总共时间 (不含前处理及矩阵生成), 若为多核心则要除以核心数
+Elapsed time = 分析总共时间 , 等於分析起始点到结束时间 </code></pre><p>调整求解器，以适应多核或分布式计算。</p>
+<pre><code>直接求解器（Direct）：Sparse
+迭代求解器（Iterative）：PCG、AMG
+分布式内存求解器（Distributed Memory）：Dsparse、DPCG、DDS</code></pre><h4 id="0-单机双核"><a href="#0-单机双核" class="headerlink" title="0.单机双核"></a>0.单机双核</h4><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">***** ROUTINE COMPLETED *****  CP =        12.324</span><br></pre></td></tr></table></figure>
+
+<h4 id="1-并行计算"><a href="#1-并行计算" class="headerlink" title="1.并行计算"></a>1.并行计算</h4><h5 id="1-1双核１００M网线"><a href="#1-1双核１００M网线" class="headerlink" title="1.1双核１００Ｍ网线"></a>1.1双核１００Ｍ网线</h5><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br></pre></td><td class="code"><pre><span class="line">FINISH SOLUTION PROCESSING</span><br><span class="line"></span><br><span class="line"> ***** ROUTINE COMPLETED *****  CP =        24.477</span><br><span class="line"></span><br><span class="line"> ***** END OF INPUT ENCOUNTERED *****</span><br><span class="line"></span><br><span class="line"> PURGE ALL SOLUTION AND POST DATA</span><br><span class="line"> SAVE ALL MODEL DATA</span><br><span class="line"></span><br><span class="line"> ALL CURRENT ANSYS DATA WRITTEN TO FILE NAME= file0.db</span><br><span class="line">  FOR POSSIBLE RESUME FROM THIS POINT</span><br><span class="line"></span><br><span class="line"> NUMBER OF WARNING MESSAGES ENCOUNTERED=          1</span><br><span class="line"> NUMBER OF ERROR   MESSAGES ENCOUNTERED=          0</span><br><span class="line"></span><br><span class="line"> *---------------------------------------------------------------------------*</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |                       DISTRIBUTED ANSYS RUN COMPLETED                     |</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |---------------------------------------------------------------------------|</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |            Release 10.0           UP20050718         INTEL NT             |</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |---------------------------------------------------------------------------|</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |   Maximum Scratch Memory Used       =    56089960 Words      213.966 MB   |</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |---------------------------------------------------------------------------|</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |        CP Time      (sec) =         24.851       Time  =  12:07:57        |</span><br><span class="line"> |        Elapsed Time (sec) =         37.000       Date  =  07/02/2019      |</span><br><span class="line"> |                                                                           |</span><br><span class="line"> *---------------------------------------------------------------------------*</span><br></pre></td></tr></table></figure>
+<h5 id="1-2单核无线网络４８M"><a href="#1-2单核无线网络４８M" class="headerlink" title="1.2单核无线网络４８Ｍ"></a>1.2单核无线网络４８Ｍ</h5><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">*** ANSYS BINARY FILE STATISTICS</span><br><span class="line">  BUFFER SIZE USED= 16384</span><br><span class="line">      220.750 MB WRITTEN ON ELEMENT SAVED DATA FILE: file0.esav</span><br><span class="line">      124.125 MB WRITTEN ON RESULTS FILE: file0.rst</span><br><span class="line"></span><br><span class="line"> FINISH SOLUTION PROCESSING</span><br><span class="line"></span><br><span class="line"> ***** ROUTINE COMPLETED *****  CP =       157.109</span><br><span class="line"></span><br><span class="line"> ***** END OF INPUT ENCOUNTERED *****</span><br><span class="line"></span><br><span class="line"> PURGE ALL SOLUTION AND POST DATA</span><br><span class="line"> SAVE ALL MODEL DATA</span><br><span class="line"></span><br><span class="line"> ALL CURRENT ANSYS DATA WRITTEN TO FILE NAME= file0.db</span><br><span class="line">  FOR POSSIBLE RESUME FROM THIS POINT</span><br><span class="line"></span><br><span class="line"> NUMBER OF WARNING MESSAGES ENCOUNTERED=          1</span><br><span class="line"> NUMBER OF ERROR   MESSAGES ENCOUNTERED=          0</span><br><span class="line"></span><br><span class="line"> *---------------------------------------------------------------------------*</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |                       DISTRIBUTED ANSYS RUN COMPLETED                     |</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |---------------------------------------------------------------------------|</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |            Release 10.0           UP20050718         INTEL NT             |</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |---------------------------------------------------------------------------|</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |   Maximum Scratch Memory Used       =    47632432 Words      181.703 MB   |</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |---------------------------------------------------------------------------|</span><br><span class="line"> |                                                                           |</span><br><span class="line"> |        CP Time      (sec) =        157.545       Time  =  10:16:57        |</span><br><span class="line"> |        Elapsed Time (sec) =        217.000       Date  =  07/02/2019      |</span><br><span class="line"> |                                                                           |</span><br><span class="line"> *---------------------------------------------------------------------------*</span><br></pre></td></tr></table></figure>
+<h5 id="1-3双核无线网络48M"><a href="#1-3双核无线网络48M" class="headerlink" title="1.3双核无线网络48M"></a>1.3双核无线网络48M</h5><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br></pre></td><td class="code"><pre><span class="line">*** ANSYS BINARY FILE STATISTICS</span><br><span class="line"> BUFFER SIZE USED= 16384</span><br><span class="line">     147.250 MB WRITTEN ON ELEMENT SAVED DATA FILE: file0.esav</span><br><span class="line">      82.812 MB WRITTEN ON RESULTS FILE: file0.rst</span><br><span class="line"></span><br><span class="line">FINISH SOLUTION PROCESSING</span><br><span class="line"></span><br><span class="line">***** ROUTINE COMPLETED *****  CP =       111.229</span><br><span class="line"></span><br><span class="line">***** END OF INPUT ENCOUNTERED *****</span><br><span class="line"></span><br><span class="line">PURGE ALL SOLUTION AND POST DATA</span><br><span class="line">SAVE ALL MODEL DATA</span><br><span class="line"></span><br><span class="line">ALL CURRENT ANSYS DATA WRITTEN TO FILE NAME= file0.db</span><br><span class="line"> FOR POSSIBLE RESUME FROM THIS POINT</span><br><span class="line"></span><br><span class="line">NUMBER OF WARNING MESSAGES ENCOUNTERED=          1</span><br><span class="line">NUMBER OF ERROR   MESSAGES ENCOUNTERED=          0</span><br><span class="line"></span><br><span class="line">*---------------------------------------------------------------------------*</span><br><span class="line">|                                                                           |</span><br><span class="line">|                       DISTRIBUTED ANSYS RUN COMPLETED                     |</span><br><span class="line">|                                                                           |</span><br><span class="line">|---------------------------------------------------------------------------|</span><br><span class="line">|                                                                           |</span><br><span class="line">|            Release 10.0           UP20050718         INTEL NT             |</span><br><span class="line">|                                                                           |</span><br><span class="line">|---------------------------------------------------------------------------|</span><br><span class="line">|                                                                           |</span><br><span class="line">|   Maximum Scratch Memory Used       =    56089960 Words      213.966 MB   |</span><br><span class="line">|                                                                           |</span><br><span class="line">|---------------------------------------------------------------------------|</span><br><span class="line">|                                                                           |</span><br><span class="line">|        CP Time      (sec) =        111.666       Time  =  10:48:08        |</span><br><span class="line">|        Elapsed Time (sec) =        141.000       Date  =  07/02/2019      |</span><br><span class="line">|                                                                           |</span><br><span class="line">*---------------------------------------------------------------------------*</span><br></pre></td></tr></table></figure>
+
+
+    </div>
+
+    
+    
+    
+
+      <footer class="post-footer">
+          <div class="post-tags">
+              <a href="/tags/%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97/" rel="tag"># 并行计算</a>
+              <a href="/tags/ansys/" rel="tag"># ansys</a>
+          </div>
+
+        
+
+
+        
+    <div class="post-nav">
+      <div class="post-nav-item">
+    <a href="/2020/02/16/hello-world/" rel="prev" title="Hello World">
+      <i class="fa fa-chevron-left"></i> Hello World
+    </a></div>
+      <div class="post-nav-item"></div>
+    </div>
+      </footer>
+    
+  </article>
+  
+  
+  
+
+  </div>
+
+
+          </div>
+          
+
+<script>
+  window.addEventListener('tabs:register', () => {
+    let activeClass = CONFIG.comments.activeClass;
+    if (CONFIG.comments.storage) {
+      activeClass = localStorage.getItem('comments_active') || activeClass;
+    }
+    if (activeClass) {
+      let activeTab = document.querySelector(`a[href="#comment-${activeClass}"]`);
+      if (activeTab) {
+        activeTab.click();
+      }
+    }
+  });
+  if (CONFIG.comments.storage) {
+    window.addEventListener('tabs:click', event => {
+      if (!event.target.matches('.tabs-comment .tab-content .tab-pane')) return;
+      let commentClass = event.target.classList[1];
+      localStorage.setItem('comments_active', commentClass);
+    });
+  }
+</script>
+
+        </div>
+          
+  
+  <div class="toggle sidebar-toggle">
+    <span class="toggle-line toggle-line-first"></span>
+    <span class="toggle-line toggle-line-middle"></span>
+    <span class="toggle-line toggle-line-last"></span>
+  </div>
+
+  <aside class="sidebar">
+    <div class="sidebar-inner">
+
+      <ul class="sidebar-nav motion-element">
+        <li class="sidebar-nav-toc">
+          文章目录
+        </li>
+        <li class="sidebar-nav-overview">
+          站点概览
+        </li>
+      </ul>
+
+      <!--noindex-->
+      <div class="post-toc-wrap sidebar-panel">
+          <div class="post-toc motion-element"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#batch模式"><span class="nav-number">1.</span> <span class="nav-text">batch模式</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#测试代码"><span class="nav-number">2.</span> <span class="nav-text">测试代码</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#计算效率对比"><span class="nav-number">3.</span> <span class="nav-text">计算效率对比</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#0-单机双核"><span class="nav-number">3.1.</span> <span class="nav-text">0.单机双核</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#1-并行计算"><span class="nav-number">3.2.</span> <span class="nav-text">1.并行计算</span></a><ol class="nav-child"><li class="nav-item nav-level-5"><a class="nav-link" href="#1-1双核１００M网线"><span class="nav-number">3.2.1.</span> <span class="nav-text">1.1双核１００Ｍ网线</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#1-2单核无线网络４８M"><span class="nav-number">3.2.2.</span> <span class="nav-text">1.2单核无线网络４８Ｍ</span></a></li><li class="nav-item nav-level-5"><a class="nav-link" href="#1-3双核无线网络48M"><span class="nav-number">3.2.3.</span> <span class="nav-text">1.3双核无线网络48M</span></a></li></ol></li></ol></li></ol></div>
+      </div>
+      <!--/noindex-->
+
+      <div class="site-overview-wrap sidebar-panel">
+        <div class="site-author motion-element" itemprop="author" itemscope itemtype="http://schema.org/Person">
+  <p class="site-author-name" itemprop="name">Nico</p>
+  <div class="site-description" itemprop="description"></div>
+</div>
+<div class="site-state-wrap motion-element">
+  <nav class="site-state">
+      <div class="site-state-item site-state-posts">
+          <a href="/archives/">
+        
+          <span class="site-state-item-count">2</span>
+          <span class="site-state-item-name">日志</span>
+        </a>
+      </div>
+      <div class="site-state-item site-state-categories">
+            <a href="/categories/">
+          
+        <span class="site-state-item-count">2</span>
+        <span class="site-state-item-name">分类</span></a>
+      </div>
+      <div class="site-state-item site-state-tags">
+            <a href="/tags/">
+          
+        <span class="site-state-item-count">3</span>
+        <span class="site-state-item-name">标签</span></a>
+      </div>
+  </nav>
+</div>
+  <div class="links-of-author motion-element">
+      <span class="links-of-author-item">
+        <a href="/atom.xml" title="RSS → &#x2F;atom.xml"><i class="fa fa-fw fa-rss"></i>RSS</a>
+      </span>
+  </div>
+
+
+  <div class="links-of-blogroll motion-element">
+    <div class="links-of-blogroll-title">
+      <i class="fa fa-fw fa-link"></i>
+      Links
+    </div>
+    <ul class="links-of-blogroll-list">
+        <li class="links-of-blogroll-item">
+          <a href="https://www.github.com/" title="https:&#x2F;&#x2F;www.github.com" rel="noopener" target="_blank">Github</a>
+        </li>
+    </ul>
+  </div>
+
+      </div>
+
+    </div>
+  </aside>
+  <div id="sidebar-dimmer"></div>
+
+
+      </div>
+    </main>
+
+    <footer class="footer">
+      <div class="footer-inner">
+        
+
+<div class="copyright">
+  
+  &copy; 
+  <span itemprop="copyrightYear">2020</span>
+  <span class="with-love">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Nico</span>
+</div>
+  <div class="powered-by">由 <a href="https://hexo.io/" class="theme-link" rel="noopener" target="_blank">Hexo</a> 强力驱动 v4.2.0
+  </div>
+  <span class="post-meta-divider">|</span>
+  <div class="theme-info">主题 – <a href="https://pisces.theme-next.org/" class="theme-link" rel="noopener" target="_blank">NexT.Pisces</a> v7.7.1
+  </div>
+
+        
+
+
+
+
+
+
+
+
+      </div>
+    </footer>
+  </div>
+
+  
+  <script src="/lib/anime.min.js"></script>
+  <script src="/lib/velocity/velocity.min.js"></script>
+  <script src="/lib/velocity/velocity.ui.min.js"></script>
+
+<script src="/js/utils.js"></script>
+
+<script src="/js/motion.js"></script>
+
+
+<script src="/js/schemes/pisces.js"></script>
+
+
+<script src="/js/next-boot.js"></script>
+
+
+
+
+  
+
+
+
+
+  
+<script src="/js/local-search.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+  
+
+</body>
+</html>

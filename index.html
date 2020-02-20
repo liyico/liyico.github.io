@@ -177,6 +177,90 @@
   
   
   <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
+    <link itemprop="mainEntityOfPage" href="liyico.github.io/2020/02/16/ansys10%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/">
+
+    <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
+      <meta itemprop="image" content="/images/avatar.gif">
+      <meta itemprop="name" content="Nico">
+      <meta itemprop="description" content="">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="Nico's Blog">
+    </span>
+      <header class="post-header">
+        <h1 class="post-title" itemprop="name headline">
+          
+            <a href="/2020/02/16/ansys10%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/" class="post-title-link" itemprop="url">Ansys10多机并行计算测试</a>
+        </h1>
+
+        <div class="post-meta">
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              <span class="post-meta-item-text">发表于</span>
+
+              <time title="创建时间：2020-02-16 16:57:29" itemprop="dateCreated datePublished" datetime="2020-02-16T16:57:29+08:00">2020-02-16</time>
+            </span>
+              <span class="post-meta-item">
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                <span class="post-meta-item-text">更新于</span>
+                <time title="修改时间：2020-02-20 21:08:38" itemprop="dateModified" datetime="2020-02-20T21:08:38+08:00">2020-02-20</time>
+              </span>
+            <span class="post-meta-item">
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              <span class="post-meta-item-text">分类于</span>
+                <span itemprop="about" itemscope itemtype="http://schema.org/Thing">
+                  <a href="/categories/CAE/" itemprop="url" rel="index">
+                    <span itemprop="name">CAE</span>
+                  </a>
+                </span>
+            </span>
+
+          
+
+        </div>
+      </header>
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+          <h3 id="batch模式"><a href="#batch模式" class="headerlink" title="batch模式"></a>batch模式</h3><p>ANSYS的批处理是区别于GUI界面执行有限元分析过程的方式，通过批处理执行分析过程不用显式模型的相关情况，只会在后台运行，因而避免了用于可视化显式的相关资源的应用，速度相对来说比在GUI界面完成要快。而且批处理更大的好处是可以通过第三方软件或者编写的程序自动执行批处理过程，在二次开发中用的比较多。ansys10的并行计算只能在batch模式下进行。须建立一个后缀名为bat的批处理文件，然后通个这个批处理文件运行ansys并计算。如：parallel.bat。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="string">"C:\Program Files\Ansys Inc\v100\ANSYS\bin\Intel\ansys100.exe"</span>  -p ANSYS -dir <span class="string">"D:\answork"</span> -j <span class="string">"file"</span> -pp -s <span class="built_in">read</span> -mpi MPICH -dis -machines apple:2:lee:1 -l en-us -b -i <span class="string">"D:\answork\runtime.txt"</span> -o <span class="string">"D:\answork\runtime.out"</span></span><br></pre></td></tr></table></figure>
+          <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/2020/02/16/ansys10%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+    
+    
+      <footer class="post-footer">
+        <div class="post-eof"></div>
+      </footer>
+  </article>
+  
+  
+  
+
+        
+  
+  
+  <article itemscope itemtype="http://schema.org/Article" class="post-block home" lang="zh-CN">
     <link itemprop="mainEntityOfPage" href="liyico.github.io/2020/02/16/hello-world/">
 
     <span hidden itemprop="author" itemscope itemtype="http://schema.org/Person">
@@ -318,20 +402,20 @@
       <div class="site-state-item site-state-posts">
           <a href="/archives/">
         
-          <span class="site-state-item-count">1</span>
+          <span class="site-state-item-count">2</span>
           <span class="site-state-item-name">日志</span>
         </a>
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
           
-        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-count">2</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
           
-        <span class="site-state-item-count">1</span>
+        <span class="site-state-item-count">3</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
   </nav>
