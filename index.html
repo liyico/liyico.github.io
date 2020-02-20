@@ -202,7 +202,7 @@
               <span class="post-meta-item-text">发表于</span>
               
 
-              <time title="创建时间：2020-02-20 22:08:43 / 修改时间：22:22:06" itemprop="dateCreated datePublished" datetime="2020-02-20T22:08:43+08:00">2020-02-20</time>
+              <time title="创建时间：2020-02-20 22:08:43 / 修改时间：22:35:21" itemprop="dateCreated datePublished" datetime="2020-02-20T22:08:43+08:00">2020-02-20</time>
             </span>
             <span class="post-meta-item">
               <span class="post-meta-item-icon">
@@ -227,7 +227,8 @@
     <div class="post-body" itemprop="articleBody">
 
       
-          <h2 id="Ver1"><a href="#Ver1" class="headerlink" title="Ver1"></a>Ver1</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">proc : ex-1.o list.o bitree.o traverse.o </span><br><span class="line">	gcc -g -Wall -o proc ex-1.o list.o bitree.o traverse.o</span><br><span class="line">ex-1.o : ex-1.c bitree.h traverse.h</span><br><span class="line">	gcc -g -Wall -c ex-1.c</span><br><span class="line">list.o : list.c list.h</span><br><span class="line">	gcc -g -Wall -c list.c</span><br><span class="line">bitree.o : bitree.c bitree.h</span><br><span class="line">	gcc -g -Wall -c bitree.c</span><br><span class="line">traverse.o : traverse.c list.h traverse.h</span><br><span class="line">	gcc -g -Wall -c traverse.c</span><br><span class="line">clean :</span><br><span class="line">	rm proc ex-1.o list.o bitree.o traverse.o <span class="comment">#对齐必须用TAB，否则就报错。</span></span><br></pre></td></tr></table></figure>
+          <h2 id="Ver1"><a href="#Ver1" class="headerlink" title="Ver1"></a>Ver1</h2><p>makefile基础版</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line">proc : ex-1.o list.o bitree.o traverse.o </span><br><span class="line">	gcc -g -Wall -o proc ex-1.o list.o bitree.o traverse.o</span><br><span class="line">ex-1.o : ex-1.c bitree.h traverse.h</span><br><span class="line">	gcc -g -Wall -c ex-1.c</span><br><span class="line">list.o : list.c list.h</span><br><span class="line">	gcc -g -Wall -c list.c</span><br><span class="line">bitree.o : bitree.c bitree.h</span><br><span class="line">	gcc -g -Wall -c bitree.c</span><br><span class="line">traverse.o : traverse.c list.h traverse.h</span><br><span class="line">	gcc -g -Wall -c traverse.c</span><br><span class="line">clean :</span><br><span class="line">	rm proc ex-1.o list.o bitree.o traverse.o <span class="comment">#对齐必须用TAB，否则就报错。</span></span><br></pre></td></tr></table></figure>
           <!--noindex-->
             <div class="post-button">
               <a class="btn" href="/2020/02/20/makefile%E6%96%87%E4%BB%B6%E7%BC%96%E5%86%99/#more" rel="contents">
