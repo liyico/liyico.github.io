@@ -2,7 +2,7 @@
 <search>
   <entry>
     <title>Ansys10多机并行计算测试</title>
-    <url>/2020/02/16/ansys10%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/</url>
+    <url>/2020/02/20/ansys10%E5%A4%9A%E6%9C%BA%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/</url>
     <content><![CDATA[<h3 id="batch模式"><a href="#batch模式" class="headerlink" title="batch模式"></a>batch模式</h3><p>ANSYS的批处理是区别于GUI界面执行有限元分析过程的方式，通过批处理执行分析过程不用显式模型的相关情况，只会在后台运行，因而避免了用于可视化显式的相关资源的应用，速度相对来说比在GUI界面完成要快。而且批处理更大的好处是可以通过第三方软件或者编写的程序自动执行批处理过程，在二次开发中用的比较多。ansys10的并行计算只能在batch模式下进行。须建立一个后缀名为bat的批处理文件，然后通个这个批处理文件运行ansys并计算。如：parallel.bat。</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="string">"C:\Program Files\Ansys Inc\v100\ANSYS\bin\Intel\ansys100.exe"</span>  -p ANSYS -dir <span class="string">"D:\answork"</span> -j <span class="string">"file"</span> -pp -s <span class="built_in">read</span> -mpi MPICH -dis -machines apple:2:lee:1 -l en-us -b -i <span class="string">"D:\answork\runtime.txt"</span> -o <span class="string">"D:\answork\runtime.out"</span></span><br></pre></td></tr></table></figure>
 <a id="more"></a>
@@ -27,30 +27,6 @@ Elapsed time = 分析总共时间 , 等於分析起始点到结束时间 </code>
       <tags>
         <tag>并行计算</tag>
         <tag>ansys</tag>
-      </tags>
-  </entry>
-  <entry>
-    <title>Hello World</title>
-    <url>/2020/02/16/hello-world/</url>
-    <content><![CDATA[<p>Welcome to <a href="https://hexo.io/" target="_blank" rel="noopener">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/" target="_blank" rel="noopener">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html" target="_blank" rel="noopener">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues" target="_blank" rel="noopener">GitHub</a>.</p>
-<h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo new <span class="string">"My New Post"</span></span><br></pre></td></tr></table></figure>
-<a id="more"></a>
-<p>More info: <a href="https://hexo.io/docs/writing.html" target="_blank" rel="noopener">Writing</a></p>
-<h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/server.html" target="_blank" rel="noopener">Server</a></p>
-<h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/generating.html" target="_blank" rel="noopener">Generating</a></p>
-<h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure>
-
-<p>More info: <a href="https://hexo.io/docs/one-command-deployment.html" target="_blank" rel="noopener">Deployment</a></p>
-]]></content>
-      <categories>
-        <category>电影评论</category>
-      </categories>
-      <tags>
-        <tag>hello</tag>
       </tags>
   </entry>
 </search>
