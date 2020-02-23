@@ -2,16 +2,44 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   
   <url>
-    <loc>liyico.github.io/2020/02/20/makefile%E6%96%87%E4%BB%B6%E7%BC%96%E5%86%99/</loc>
+    <loc>liyico.github.io/makefile%E6%96%87%E4%BB%B6%E7%BC%96%E5%86%99/</loc>
     
-    <lastmod>2020-02-20T15:09:38.218Z</lastmod>
+    <lastmod>2020-02-22T16:50:57.602Z</lastmod>
     
   </url>
   
   <url>
-    <loc>liyico.github.io/2020/02/20/ansys10%E5%A4%9A%E6%9C%BA%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/</loc>
+    <loc>liyico.github.io/restrict/index.html</loc>
     
-    <lastmod>2020-02-20T13:44:17.985Z</lastmod>
+    <lastmod>2020-02-22T16:50:34.262Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>liyico.github.io/categories/index.html</loc>
+    
+    <lastmod>2020-02-22T08:05:15.801Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>liyico.github.io/ansys10%E5%A4%9A%E6%9C%BA%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/</loc>
+    
+    <lastmod>2020-02-22T07:57:03.669Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>liyico.github.io/cae/index.html</loc>
+    
+    <lastmod>2020-02-22T07:56:20.938Z</lastmod>
+    
+  </url>
+  
+  <url>
+    <loc>liyico.github.io/favorite/index.html</loc>
+    
+    <lastmod>2020-02-22T07:29:57.961Z</lastmod>
     
   </url>
   
@@ -19,13 +47,6 @@
     <loc>liyico.github.io/tags/index.html</loc>
     
     <lastmod>2020-02-16T13:37:29.201Z</lastmod>
-    
-  </url>
-  
-  <url>
-    <loc>liyico.github.io/categories/index.html</loc>
-    
-    <lastmod>2020-02-16T13:34:31.341Z</lastmod>
     
   </url>
   
