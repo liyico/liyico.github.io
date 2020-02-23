@@ -28,7 +28,7 @@
 <meta property="og:description" content="Ver1 基础版proc : ex-1.o list.o bitree.o traverse.o 	gcc -g -Wall -o proc ex-1.o list.o bitree.o traverse.oex-1.o : ex-1.c bitree.h traverse.h	gcc -g -Wall -c ex-1.clist.o : list.c list.h	gcc -g -Wall -c">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2020-02-20T14:08:43.734Z">
-<meta property="article:modified_time" content="2020-02-22T16:50:57.602Z">
+<meta property="article:modified_time" content="2020-02-23T09:57:05.615Z">
 <meta property="article:author" content="Nico">
 <meta property="article:tag" content="linux">
 <meta property="article:tag" content="makefile">
@@ -113,16 +113,6 @@
 <nav class="site-nav">
   
   <ul id="menu" class="menu">
-        <li class="menu-item menu-item-tags">
-
-    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">5</span></a>
-
-  </li>
-        <li class="menu-item menu-item-categories">
-
-    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">3</span></a>
-
-  </li>
         <li class="menu-item menu-item-home">
 
     <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
@@ -135,22 +125,17 @@
   </li>
         <li class="menu-item menu-item-restrict">
 
-    <a href="/restrict/" rel="section"><i class="fa fa-fw fa-restirc"></i>当日限行</a>
-
-  </li>
-        <li class="menu-item menu-item-favorite">
-
-    <a href="/categories/favorite" rel="section"><i class="fa fa-fw fa-favorite -page:favorite directory:/categories/favorite icon:fa-star"></i>收藏夹</a>
+    <a href="/restrict/" rel="section"><i class="fa fa-fw fa-leaf"></i>当日限行</a>
 
   </li>
         <li class="menu-item menu-item-cae">
 
-    <a href="/categories/cae" rel="section"><i class="fa fa-fw fa-cae -page:cae directory:/categories/cae icon:fa-star"></i>有限元</a>
+    <a href="/categories/cae" rel="section"><i class="fa fa-fw fa-table -page:cae directory:/categories/cae icon:fa-star"></i>有限元</a>
 
   </li>
         <li class="menu-item menu-item-program">
 
-    <a href="/categories/program" rel="section"><i class="fa fa-fw fa-program -page:program directory:/categories/program icon:fa-star"></i>编程</a>
+    <a href="/categories/program" rel="section"><i class="fa fa-fw fa-laptop -page:program directory:/categories/program icon:fa-star"></i>编程</a>
 
   </li>
       <li class="menu-item menu-item-search">
@@ -237,7 +222,7 @@
 
       
         <h2 id="Ver1-基础版"><a href="#Ver1-基础版" class="headerlink" title="Ver1 基础版"></a>Ver1 基础版</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">proc : ex-1.o list.o bitree.o traverse.o </span><br><span class="line">	gcc -g -Wall -o proc ex-1.o list.o bitree.o traverse.o</span><br><span class="line">ex-1.o : ex-1.c bitree.h traverse.h</span><br><span class="line">	gcc -g -Wall -c ex-1.c</span><br><span class="line">list.o : list.c list.h</span><br><span class="line">	gcc -g -Wall -c list.c</span><br><span class="line">bitree.o : bitree.c bitree.h</span><br><span class="line">	gcc -g -Wall -c bitree.c</span><br><span class="line">traverse.o : traverse.c list.h traverse.h</span><br><span class="line">	gcc -g -Wall -c traverse.c</span><br><span class="line">clean :</span><br><span class="line">	rm proc ex-1.o list.o bitree.o traverse.o <span class="comment">#对齐必须用TAB，否则就报错。</span></span><br></pre></td></tr></table></figure>
-<a id="more"></a> 
+<a id="more"></a>
 <h2 id="Ver2-简化版"><a href="#Ver2-简化版" class="headerlink" title="Ver2 简化版"></a>Ver2 简化版</h2><p>设置变量简化程序</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">	objects= ex-1.o list.o bitree.o traverse.o</span><br><span class="line">	proc :$(objects)</span><br><span class="line">	gcc -g -Wall -o proc $(objects)</span><br><span class="line">	<span class="comment">#make识别一个.o文件会自动对应.c文件，并推导相关编译命令。</span></span><br><span class="line">ex-1.o :bitree.h traverse.h</span><br><span class="line">list.o :list.h</span><br><span class="line">bitree.o : bitree.h</span><br><span class="line">traverse.o : list.h traverse.h</span><br><span class="line">	.PHONY : clean</span><br><span class="line">clean:</span><br><span class="line">	rm proc $(objects)</span><br></pre></td></tr></table></figure>
 <h2 id="Ver3-进阶版"><a href="#Ver3-进阶版" class="headerlink" title="Ver3 进阶版"></a>Ver3 进阶版</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">CC= gcc</span><br><span class="line">CFLAGS= -g -Wall -Iinclude -Isrc</span><br><span class="line"><span class="comment">#必须要写-Iinclude -Isrc表示路径在哪里不然找不到文件哦</span></span><br><span class="line">TARGET= bitree</span><br><span class="line">DIRS= include src  ./</span><br><span class="line">FILES= $(foreach dir, $(DIRS), $(wildcard $(dir)/*.c))</span><br><span class="line"><span class="comment">#$(wildcard $(dir)/*.c)取出目录include src和当前目录中所有扩展名为.c的源文件</span></span><br><span class="line"><span class="comment">#$(foreach dir, $(DIRS)循环将DIRS字符串中一个空格分割的单词先传给临时变量dir</span></span><br><span class="line"><span class="comment">#然后执行第三个表达式，返回值是其计算结果。</span></span><br><span class="line">OBJS=$(patsubst %.c, %.o, $(FILES))</span><br><span class="line"><span class="comment">#输出字符串当前扩展名为.c的文件替换成.o文件列表</span></span><br><span class="line"><span class="comment">#$(OBJS):%.o:%.c中 %.o:%.c是将$(OBJS)中以.o结尾的文件替换成以.c结尾的文件。</span></span><br><span class="line"><span class="comment">#其中$&lt;和$@是自动化变量,$&lt;和$@分别代表依赖项和目标项。</span></span><br><span class="line">$(TARGET):$(OBJS)</span><br><span class="line">	$(CC) -o $(TARGET) $(OBJS) $(CFLAGS)</span><br><span class="line"></span><br><span class="line">$(OBJS):%o:%c</span><br><span class="line">	$(CC) -c $&lt; -o <span class="variable">$@</span> $(CFLAGS)</span><br><span class="line"></span><br><span class="line">clean:</span><br><span class="line">	-$(RM) $(TARGET)</span><br><span class="line">	-$(RM) $(OBJS)</span><br></pre></td></tr></table></figure>
@@ -246,25 +231,6 @@
     
     
     
-        
-
-  <div class="followme">
-    <p>欢迎关注我的其它发布渠道</p>
-
-    <div class="social-list">
-
-            <div class="social-item">
-              <a target="_blank" class="social-link" href="/images/wechat_channel.jpg">
-                <span class="icon">
-                  <i class="fa fa-wechat"></i>
-                </span>
-
-                <span class="label">WeChat</span>
-              </a>
-            </div>
-    </div>
-  </div>
-
 
       <footer class="post-footer">
           <div class="post-tags">
@@ -363,13 +329,11 @@
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
-          
         <span class="site-state-item-count">3</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
-          
         <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
@@ -377,7 +341,7 @@
 </div>
   <div class="links-of-author motion-element">
       <span class="links-of-author-item">
-        <a href="mailto:yourname@gmail.com" title="E-Mail → mailto:yourname@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i></a>
+        <a href="mailto:uuflyfly@gmail.com" title="E-Mail → mailto:uuflyfly@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i></a>
       </span>
       <span class="links-of-author-item">
         <a href="/atom.xml" title="RSS → &#x2F;atom.xml"><i class="fa fa-fw fa-rss"></i></a>

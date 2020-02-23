@@ -108,16 +108,6 @@
 <nav class="site-nav">
   
   <ul id="menu" class="menu">
-        <li class="menu-item menu-item-tags">
-
-    <a href="/tags/" rel="section"><i class="fa fa-fw fa-tags"></i>标签<span class="badge">5</span></a>
-
-  </li>
-        <li class="menu-item menu-item-categories">
-
-    <a href="/categories/" rel="section"><i class="fa fa-fw fa-th"></i>分类<span class="badge">3</span></a>
-
-  </li>
         <li class="menu-item menu-item-home">
 
     <a href="/" rel="section"><i class="fa fa-fw fa-home"></i>首页</a>
@@ -130,22 +120,17 @@
   </li>
         <li class="menu-item menu-item-restrict">
 
-    <a href="/restrict/" rel="section"><i class="fa fa-fw fa-restirc"></i>当日限行</a>
-
-  </li>
-        <li class="menu-item menu-item-favorite">
-
-    <a href="/categories/favorite" rel="section"><i class="fa fa-fw fa-favorite -page:favorite directory:/categories/favorite icon:fa-star"></i>收藏夹</a>
+    <a href="/restrict/" rel="section"><i class="fa fa-fw fa-leaf"></i>当日限行</a>
 
   </li>
         <li class="menu-item menu-item-cae">
 
-    <a href="/categories/cae" rel="section"><i class="fa fa-fw fa-cae -page:cae directory:/categories/cae icon:fa-star"></i>有限元</a>
+    <a href="/categories/cae" rel="section"><i class="fa fa-fw fa-table -page:cae directory:/categories/cae icon:fa-star"></i>有限元</a>
 
   </li>
         <li class="menu-item menu-item-program">
 
-    <a href="/categories/program" rel="section"><i class="fa fa-fw fa-program -page:program directory:/categories/program icon:fa-star"></i>编程</a>
+    <a href="/categories/program" rel="section"><i class="fa fa-fw fa-laptop -page:program directory:/categories/program icon:fa-star"></i>编程</a>
 
   </li>
       <li class="menu-item menu-item-search">
@@ -227,6 +212,11 @@
       
           <h2 id="Ver1-基础版"><a href="#Ver1-基础版" class="headerlink" title="Ver1 基础版"></a>Ver1 基础版</h2><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line">proc : ex-1.o list.o bitree.o traverse.o </span><br><span class="line">	gcc -g -Wall -o proc ex-1.o list.o bitree.o traverse.o</span><br><span class="line">ex-1.o : ex-1.c bitree.h traverse.h</span><br><span class="line">	gcc -g -Wall -c ex-1.c</span><br><span class="line">list.o : list.c list.h</span><br><span class="line">	gcc -g -Wall -c list.c</span><br><span class="line">bitree.o : bitree.c bitree.h</span><br><span class="line">	gcc -g -Wall -c bitree.c</span><br><span class="line">traverse.o : traverse.c list.h traverse.h</span><br><span class="line">	gcc -g -Wall -c traverse.c</span><br><span class="line">clean :</span><br><span class="line">	rm proc ex-1.o list.o bitree.o traverse.o <span class="comment">#对齐必须用TAB，否则就报错。</span></span><br></pre></td></tr></table></figure>
           <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/makefile%E6%96%87%E4%BB%B6%E7%BC%96%E5%86%99/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
           <!--/noindex-->
         
       
@@ -280,6 +270,11 @@
           <h3 id="batch模式"><a href="#batch模式" class="headerlink" title="batch模式"></a>batch模式</h3><p>ANSYS的批处理是区别于GUI界面执行有限元分析过程的方式，通过批处理执行分析过程不用显式模型的相关情况，只会在后台运行，因而避免了用于可视化显式的相关资源的应用，速度相对来说比在GUI界面完成要快。而且批处理更大的好处是可以通过第三方软件或者编写的程序自动执行批处理过程，在二次开发中用的比较多。ansys10的并行计算只能在batch模式下进行。须建立一个后缀名为bat的批处理文件，然后通个这个批处理文件运行ansys并计算。如：parallel.bat。</p>
 <figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="string">"C:\Program Files\Ansys Inc\v100\ANSYS\bin\Intel\ansys100.exe"</span>  -p ANSYS -dir <span class="string">"D:\answork"</span> -j <span class="string">"file"</span> -pp -s <span class="built_in">read</span> -mpi MPICH -dis -machines apple:2:lee:1 -l en-us -b -i <span class="string">"D:\answork\runtime.txt"</span> -o <span class="string">"D:\answork\runtime.out"</span></span><br></pre></td></tr></table></figure>
           <!--noindex-->
+            <div class="post-button">
+              <a class="btn" href="/ansys10%E5%A4%9A%E6%9C%BA%E5%B9%B6%E8%A1%8C%E8%AE%A1%E7%AE%97%E6%B5%8B%E8%AF%95/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
           <!--/noindex-->
         
       
@@ -371,13 +366,11 @@
       </div>
       <div class="site-state-item site-state-categories">
             <a href="/categories/">
-          
         <span class="site-state-item-count">3</span>
         <span class="site-state-item-name">分类</span></a>
       </div>
       <div class="site-state-item site-state-tags">
             <a href="/tags/">
-          
         <span class="site-state-item-count">5</span>
         <span class="site-state-item-name">标签</span></a>
       </div>
@@ -385,7 +378,7 @@
 </div>
   <div class="links-of-author motion-element">
       <span class="links-of-author-item">
-        <a href="mailto:yourname@gmail.com" title="E-Mail → mailto:yourname@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i></a>
+        <a href="mailto:uuflyfly@gmail.com" title="E-Mail → mailto:uuflyfly@gmail.com" rel="noopener" target="_blank"><i class="fa fa-fw fa-envelope"></i></a>
       </span>
       <span class="links-of-author-item">
         <a href="/atom.xml" title="RSS → &#x2F;atom.xml"><i class="fa fa-fw fa-rss"></i></a>
