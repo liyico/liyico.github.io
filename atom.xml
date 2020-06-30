@@ -6,7 +6,7 @@
   <link href="/atom.xml" rel="self"/>
   
   <link href="liyico.github.io/"/>
-  <updated>2020-02-23T12:40:27.745Z</updated>
+  <updated>2020-03-03T04:56:43.298Z</updated>
   <id>liyico.github.io/</id>
   
   <author>
@@ -15,6 +15,37 @@
   </author>
   
   <generator uri="https://hexo.io/">Hexo</generator>
+  
+  <entry>
+    <title>微信小程序时间格式不兼容IOS系统</title>
+    <link href="liyico.github.io/%E5%BE%AE%E4%BF%A1%E5%B0%8F%E7%A8%8B%E5%BA%8F%E6%97%B6%E9%97%B4%E6%A0%BC%E5%BC%8F%E4%B8%8D%E5%85%BC%E5%AE%B9IOS%E7%B3%BB%E7%BB%9F/"/>
+    <id>liyico.github.io/%E5%BE%AE%E4%BF%A1%E5%B0%8F%E7%A8%8B%E5%BA%8F%E6%97%B6%E9%97%B4%E6%A0%BC%E5%BC%8F%E4%B8%8D%E5%85%BC%E5%AE%B9IOS%E7%B3%BB%E7%BB%9F/</id>
+    <published>2020-03-03T04:37:29.944Z</published>
+    <updated>2020-03-03T04:56:43.298Z</updated>
+    
+    <content type="html"><![CDATA[<p>小程序时间运算中，安卓能正常运行，但是在IOS系统不行。报错nanundefined。原因为IOS不支持 “YYYY-MM-DD“ 时间格式。</p><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">let</span> time=<span class="string">"2020-03-03 00:00:00"</span></span><br><span class="line">var newtime = new Date(time).format(<span class="string">'MM-dd'</span>)</span><br></pre></td></tr></table></figure><p>解决办法如下：用正则匹配把“2020-03-03 00:00:00”转换成“2020/03/03 00:00:00”兼容ios系统。</p><figure class="highlight bash"><table><tr><td class="code"><pre><span class="line"><span class="built_in">let</span> time=<span class="string">"2020-03-03 00:00:00"</span></span><br><span class="line">var nTime = time.replace(/-/g, <span class="string">'/'</span>); </span><br><span class="line">var timeStamp = Date.parse(nTime);</span><br><span class="line">console.log(timeStamp)</span><br><span class="line">console.log(new Date(timeStamp).format(<span class="string">'MM-dd'</span>))</span><br><span class="line">1583164800000</span><br><span class="line">03-03</span><br></pre></td></tr></table></figure>]]></content>
+    
+    <summary type="html">
+    
+      
+      
+        &lt;p&gt;小程序时间运算中，安卓能正常运行，但是在IOS系统不行。报错nanundefined。原因为IOS不支持 “YYYY-MM-DD“ 时间格式。&lt;/p&gt;
+&lt;figure class=&quot;highlight bash&quot;&gt;&lt;table&gt;&lt;tr&gt;&lt;td class=&quot;code&quot;&gt;&lt;p
+      
+    
+    </summary>
+    
+    
+      <category term="program" scheme="liyico.github.io/categories/program/"/>
+    
+    
+      <category term="小程序" scheme="liyico.github.io/tags/%E5%B0%8F%E7%A8%8B%E5%BA%8F/"/>
+    
+      <category term="时间戳" scheme="liyico.github.io/tags/%E6%97%B6%E9%97%B4%E6%88%B3/"/>
+    
+      <category term="转换" scheme="liyico.github.io/tags/%E8%BD%AC%E6%8D%A2/"/>
+    
+  </entry>
   
   <entry>
     <title>makefile文件编写</title>
