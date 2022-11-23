@@ -1,20 +1,20 @@
 [{
-        "holiday": true,
+        "holiday": "true",
         "name": "元旦",
         "date": "2022-01-01"
     },
 {
-        "holiday": true,
+        "holiday": "true",
         "name": "元旦",
         "date": "2022-01-02"
     },
 {
-        "holiday": true,
+        "holiday": "true",
         "name": "元旦",
         "date": "2022-01-03"
     },
  {
-        "holiday": false,
+        "holiday": "false",
         "name": "春节前补班",
         "date": "2022-01-29",
   }]
