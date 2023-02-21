@@ -1,0 +1,271 @@
+3
+Programming Savvy Arithmetic Expressions
+
+Dynamic linkage is a powerful programming technique in its own right. Rather than writing a few functions, each with a big switch to handle many special cases, we can write many small functions, one for each case, and arrange for the proper function to be called by dynamic linkage. This often simplifies a routine job and it usually results in code that can be extended easily.
+As an example we will write a small program to read and evaluate arithmetic expressions consisting of floating point numbers, parentheses and the usual opera- tors for addition, subtraction, and so on. Normally we would use the compiler gen- erator tools lex and yacc to build that part of the program which recognizes an arith- metic expression. This book is not about compiler building, however, so just this once we will write this code ourselves.
+
+3.1The Main Loop
+The main loop of the program reads a line from standard input, initializes things so that numbers and operators can be extracted and white space is ignored, calls up a function to recognize a correct arithmetic expression and somehow store it, and finally processes whatever was stored. If things go wrong, we simply read the next input line. Here is the main loop:
+#include <setjmp.h>
+static enum tokens token;	/* current input symbol */ static jmp_buf onError;
+int main (void)
+{	volatile int errors = 0; char buf [BUFSIZ];
+if (setjmp(onError))
+++ errors;
+while (gets(buf)) if (scan(buf))
+{	void * e = sum();
+if (token)
+error("trash after sum"); process(e);
+delete(e);
+}
+return errors > 0;
+}
+
+
+void error (const char * fmt, ...)
+{	va_list ap;
+va_start(ap, fmt);
+vfprintf(stderr, fmt, ap), putc(’\n’, stderr); va_end(ap);
+longjmp(onError, 1);
+}
+The error recovery point is defined with setjmp(). If error() is called somewhere in the program, longjmp() continues execution with another return from setjmp(). In this case, the result is the value passed to longjmp(), the error is counted, and the next input line is read. The exit code of the program reports if any errors were encountered.
+
+3.2The Scanner
+In the main loop, once an input line has been read into buf[], it is passed to scan(), which for each call places the next input symbol into the variable token. At the end of a line token is zero:
+#include <ctype.h> #include <errno.h> #include <stdlib.h>
+#include "parse.h"	/* defines NUMBER */
+static double number;	/* if NUMBER: numerical value */ static enum tokens scan (const char * buf)
+/* return token = next input symbol */
+{	static const char * bp;
+if (buf)
+bp = buf;	/* new input line */
+while (isspace(* bp))
+++ bp;
+if (isdigit(* bp) || * bp == ’.’)
+{	errno = 0;
+token = NUMBER, number = strtod(bp, (char **) & bp); if (errno == ERANGE)
+error("bad value: %s", strerror(errno));
+}
+else
+token = * bp ? * bp ++ : 0;
+return token;
+}
+We call scan() with the address of an input line or with a null pointer to continue work on the present line. White space is ignored and for a leading digit or decimal point we extract a floating point number with the ANSI-C function strtod(). Any other character is returned as is, and we do not advance past a null byte at the end of the input buffer.
+
+3.3The Recognizer	23
+
+The result of scan() is stored in the global variable token — this simplifies the recognizer. If we have detected a number, we return the unique value NUMBER and we make the actual value available in the global variable number.
+
+3.3The Recognizer
+At the top level expressions are recognized by the function sum() which internally calls on scan() and returns a representation that can be manipulated by process() and reclaimed by delete().
+If we do not use yacc we recognize expressions by the method of recursive descent where grammatical rules are translated into equivalent C functions. For example: a sum is a product, followed by zero or more groups, each consisting of an addition operator and another product. A grammatical rule like
+sum : product { +|— product }...
+is translated into a C function like
+void sum (void)
+{
+product(); for (;;)
+{	switch (token) { case ’+’:
+case ’—’:
+scan(0), product(); continue;
+}
+return;
+}
+}
+There is a C function for each grammatical rule so that rules can call each other. Alternatives are translated into switch or if statements, iterations in the grammar produce loops in C. The only problem is that we must avoid infinite recursion.
+token always contains the next input symbol. If we recognize it, we must call
+scan(0) to advance in the input and store a new symbol in token.
+
+3.4The Processor
+How do we process an expression? If we only want to perform simple arithmetic on numerical values, we can extend the recognition functions and compute the result as soon as we recognize the operators and the operands: sum() would expect a double result from each call to product(), perform addition or subtraction as soon as possible, and return the result, again as a double function value.
+If we want to build a system that can handle more complicated expressions we need to store expressions for later processing. In this case, we can not only per- form arithmetic, but we can permit decisions and conditionally evaluate only part of an expression, and we can use stored expressions as user functions within other expressions. All we need is a reasonably general way to represent an expression. The conventional technique is to use a binary tree and store token in each node:
+
+
+struct Node {
+enum tokens token;
+struct Node * left, * right;
+};
+This is not very flexible, however. We need to introduce a union to create a node in which we can store a numerical value and we waste space in nodes representing unary operators. Additionally, process() and delete() will contain switch state- ments which grow with every new token which we invent.
+
+3.5Information Hiding
+Applying what we have learned thus far, we do not reveal the structure of a node at all. Instead, we place some declarations in a header file value.h:
+const void * Add;
+...
+void * new (const void * type, ...); void process (const void * tree); void delete (void * tree);
+Now we can code sum() as follows:
+#include "value.h"
+static void * sum (void)
+{	void * result = product(); const void * type;
+for (;;)
+{	switch (token) { case ’+’:
+type = Add; break;
+case ’—’:
+type = Sub; break;
+default:
+return result;
+}
+scan(0);
+result = new(type, result, product());
+}
+}
+product() has the same architecture as sum() and calls on a function factor() to recognize numbers, signs, and a sum enclosed in parentheses:
+static void * sum (void);
+static void * factor (void)
+{	void * result;
+switch (token) { case ’+’:
+scan(0);
+return factor();
+
+3.6Dynamic Linkage	25
+
+case ’—’:
+scan(0);
+return new(Minus, factor()); default:
+error("bad factor: ’%c’ 0x%x", token, token); case NUMBER:
+result = new(Value, number); break;
+case ’(’:
+scan(0);
+result = sum(); if (token != ’)’)
+error("expecting )");
+}
+scan(0); return result;
+}
+Especially in factor() we need to be very careful to maintain the scanner invariant: token must always contain the next input symbol. As soon as token is consumed we need to call scan(0).
+
+3.6Dynamic Linkage
+The recognizer is complete. value.h completely hides the evaluator for arith- metic expressions and at the same time specifies what we have to implement. new() takes a description such as Add and suitable arguments such as pointers to the operands of the addition and returns a pointer representing the sum:
+struct Type {
+void * (* new) (va_list ap);
+double (* exec) (const void * tree); void (* delete) (void * tree);
+};
+void * new (const void * type, ...)
+{	va_list ap; void * result;
+assert(type && ((struct Type *) type) —> new);
+va_start(ap, type);
+result = ((struct Type *) type) —> new(ap);
+* (const struct Type **) result = type; va_end(ap);
+return result;
+}
+We use dynamic linkage and pass the call to a node-specific routine which, in the case of Add, has to create the node and enter the two pointers:
+struct Bin {
+const void * type; void * left, * right;
+};
+
+
+static void * mkBin (va_list ap)
+{	struct Bin * node = malloc(sizeof(struct Bin));
+assert(node);
+node —> left = va_arg(ap, void *); node —> right = va_arg(ap, void *); return node;
+}
+Note that only mkBin() knows what node it creates. All we require is that the vari- ous nodes start with a pointer for the dynamic linkage. This pointer is entered by new() so that delete() can reach its node-specific function:
+void delete (void * tree)
+{
+assert(tree && * (struct Type **) tree
+&& (* (struct Type **) tree) —> delete);
+(* (struct Type **) tree) —> delete(tree);
+}
+static void freeBin (void * tree)
+{
+delete(((struct Bin *) tree) —> left); delete(((struct Bin *) tree) —> right); free(tree);
+}
+Dynamic linkage elegantly avoids complicated nodes. .new() creates precisely the right node for each type description: binary operators have two descendants, unary operators have one, and a value node only contains the value. delete() is a very simple function because each node handles its own destruction: binary opera- tors delete two subtrees and free their own node, unary operators delete only one subtree, and a value node will only free itself. Variables or constants can even remain behind — they simply would do nothing in response to delete().
+
+3.7A Postfix Writer
+So far we have not really decided what process() is going to do. If we want to emit a postfix version of the expression, we would add a character string to the struct Type to show the actual operator and process() would arrange for a single output line indented by a tab:
+void process (const void * tree)
+{
+putchar(’\t’); exec(tree); putchar(’\n’);
+}
+
+3.7A Postfix Writer	27
+
+exec() handles the dynamic linkage:
+static void exec (const void * tree)
+{
+assert(tree && * (struct Type **) tree
+&& (* (struct Type **) tree) —> exec);
+(* (struct Type **) tree) —> exec(tree);
+}
+and every binary operator is emitted with the following function:
+static void doBin (const void * tree)
+{
+exec(((struct Bin *) tree) —> left); exec(((struct Bin *) tree) —> right);
+printf(" %s", (* (struct Type **) tree) —> name);
+}
+The type descriptions tie everything together:
+static struct Type _Add = { "+", mkBin, doBin, freeBin }; static struct Type _Sub = { "—", mkBin, doBin, freeBin };
+const void * Add = & _Add; const void * Sub = & _Sub;
+It should be easy to guess how a numerical value is implemented. It is represented as a structure with a double information field:
+struct Val {
+const void * type; double value;
+};
+static void * mkVal (va_list ap)
+{	struct Val * node = malloc(sizeof(struct Val));
+assert(node);
+node —> value = va_arg(ap, double); return node;
+}
+Processing consists of printing the value:
+static void doVal (const void * tree)
+{
+printf(" %g", ((struct Val *) tree) —> value);
+}
+We are done — there is no subtree to delete, so we can use the library function
+free() directly to delete the value node:
+static struct Type _Value = { "", mkVal, doVal, free }; const void * Value = & _Value;
+A unary operator such as Minus is left as an exercise.
+
+
+3.8Arithmetic
+If we want to do arithmetic, we let the execute functions return double values to be printed in process():
+static double exec (const void * tree)
+{
+return (* (struct Type **) tree) —> exec(tree);
+}
+void process (const void * tree)
+{
+printf("\t%g\n", exec(tree));
+}
+For each type of node we need one execution function which computes and returns the value for the node. Here are two examples:
+static double doVal (const void * tree)
+{
+return ((struct Val *) tree) —> value;
+}
+static double doAdd (const void * tree)
+{
+return exec(((struct Bin *) tree) —> left) + exec(((struct Bin *) tree) —> right);
+}
+static struct Type _Add = { mkBin, doAdd, freeBin }; static struct Type _Value = { mkVal, doVal, free };
+const void * Add = & _Add; const void * Value = & _Value;
+
+3.9Infix Output
+Perhaps the highlight of processing arithmetic expressions is to print them with a minimal number of parentheses. This is usually a bit tricky, depending on who is responsible for emitting the parentheses. In addition to the operator name used for postfix output we add two numbers to the struct Type:
+struct Type {
+const char * name;	/* node’s name */ char rank, rpar;
+void * (* new) (va_list ap);
+void (* exec) (const void * tree, int rank, int par); void (* delete) (void * tree);
+};
+.rank is the precedence of the operator, starting with 1 for addition. .rpar is set for operators such as subtraction, which require their right operand to be enclosed in parentheses if it uses an operator of equal precedence. As an example consider
+
+3.10Summary	29
+
+$ infix
+1 + (2 — 3)
+1 + 2 — 3
+1 — (2 — 3)
+1 — (2 — 3)
+This demonstrates that we have the following initialization:
+static struct Type _Add = {"+", 1, 0, mkBin, doBin, freeBin}; static struct Type _Sub = {"—", 1, 1, mkBin, doBin, freeBin};
+The tricky part is for a binary node to decide if it must surround itself with parentheses. A binary node such as an addition is given the precedence of its superior and a flag indicating whether parentheses are needed in the case of equal precedence. doBin() decides if it will use parentheses:
+static void doBin (const void * tree, int rank, int par)
+{	const struct Type * type = * (struct Type **) tree;
+par = type —> rank < rank
+|| (par && type —> rank == rank); if (par) putchar(’(’);
+If our node has less precedence than its superior, or if we are asked to put up
+parentheses on equal precedence, we print parentheses. In any case, if our description has .rpar set, we require only of our right operand that it put up extra parentheses:
+exec(((struct Bin *) tree) —> left, type —> rank, 0); printf(" %s ", type —> name);
+exec(((struct Bin *) tree) —> right, type —> rank, type —> rpar);
+if (par) putchar(’)’);
+}
+The remaining printing routines are significantly simpler to write.
+
+3.10 Summary
+Three different processors demonstrate the advantages of information hiding. Dynamic linkage has helped to divide a problem into many very simple functions. The resulting program is easily extended — try adding comparisons and an operator like ?: in C.
