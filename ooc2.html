@@ -1,0 +1,247 @@
+2
+Dynamic Linkage Generic Functions
+
+
+2.1Constructors and Destructors
+Let us implement a simple string data type which we will later include into a set. For a new string we allocate a dynamic buffer to hold the text. When the string is deleted, we will have to reclaim the buffer.
+new() is responsible for creating an object and delete() must reclaim the resources it owns. new() knows what kind of object it is creating, because it has the description of the object as a first parameter. Based on the parameter, we could use a chain of if statements to handle each creation individually. The draw- back is that new() would explicitly contain code for each data type which we sup- port.
+delete(), however, has a bigger problem. It, too, must behave differently based on the type of the object being deleted: for a string the text buffer must be freed; for an object as used in chapter 1 only the object itself has to be reclaimed; and a set may have acquired various chunks of memory to store references to its ele- ments.
+We could give delete() another parameter: either our type descriptor or the function to do the cleaning up, but this approach is clumsy and error-prone. There is a much more general and elegant way: each object must know how to destroy its own resources. Part of each and every object will be a pointer with which we can locate a clean-up function. We call such a function a destructor for the object.
+Now new() has a problem. It is responsible for creating objects and returning pointers that can be passed to delete(), i.e., new() must install the destructor infor- mation in each object. The obvious approach is to make a pointer to the destructor part of the type descriptor which is passed to new(). So far we need something like the following declarations:
+struct type {
+size_t size;	/* size of an object */ void (* dtor) (void *); /* destructor */
+};
+struct String {
+char * text;	/* dynamic string */ const void * destroy;	/* locate destructor */
+};
+struct Set {
+... information ...
+const void * destroy;	/* locate destructor */
+};
+
+
+It looks like we have another problem: somebody needs to copy the destructor pointer dtor from the type description to destroy in the new object and the copy may have to be placed into a different position in each class of objects.
+Initialization is part of the job of new() and different types require different work
+— new() may even require different arguments for different types:
+new(Set);	/* make a set */ new(String, "text");	/* make a string */
+For initialization we use another type-specific function which we will call a construc- tor. Since constructor and destructor are type-specific and do not change, we pass both to new() as part of the type description.
+Note that constructor and destructor are not responsible for acquiring and releasing the memory for an object itself — this is the job of new() and delete(). The constructor is called by new() and is only responsible for initializing the memory area allocated by new(). For a string, this does involve acquiring another piece of memory to store the text, but the space for struct String itself is allocated by new(). This space is later freed by delete(). First, however, delete() calls the des- tructor which essentially reverses the initialization done by the constructor before delete() recycles the memory area allocated by new().
+
+2.2Methods, Messages, Classes and Objects
+delete() must be able to locate the destructor without knowing what type of object it has been given. Therefore, revising the declarations shown in section 2.1, we must insist that the pointer used to locate the destructor must be at the beginning of all objects passed to delete(), no matter what type they have.
+What should this pointer point to? If all we have is the address of an object, this pointer gives us access to type-specific information for the object, such as its destructor function. It seems likely that we will soon invent other type-specific functions such as a function to display objects, or our comparison function differ(), or a function clone() to create a complete copy of an object. Therefore we will use a pointer to a table of function pointers.
+Looking closely, we realize that this table must be part of the type description passed to new(), and the obvious solution is to let an object point to the entire type description:
+struct Class { size_t size;
+void * (* ctor) (void * self, va_list * app); void * (* dtor) (void * self);
+void * (* clone) (const void * self);
+int (* differ) (const void * self, const void * b);
+};
+struct String {
+const void * class; /* must be first */ char * text;
+};
+
+
+struct Set {
+const void * class; /* must be first */
+...
+};
+Each of our objects starts with a pointer to its own type description, and through this type description we can locate type-specific information for the object: .size is the length that new() allocates for the object; .ctor points to the constructor called by new() which receives the allocated area and the rest of the argument list passed to new() originally; .dtor points to the destructor called by delete() which receives the object to be destroyed; .clone points to a copy function which receives the object to be copied; and .differ points to a function which compares its object to something else.
+Looking down this list, we notice that every function works for the object through which it will be selected. Only the constructor may have to cope with a partially initialized memory area. We call these functions methods for the objects. Calling a method is termed a message and we have marked the receiving object of the message with the parameter name self. Since we are using plain C functions, self need not be the first parameter.
+Many objects will share the same type descriptor, i.e., they need the same amount of memory and the same methods can be applied to them. We call all objects with the same type descriptor a class; a single object is called an instance of the class. So far a class, an abstract data type, and a set of possible values together with operations, i.e., a data type, are pretty much the same.
+An object is an instance of a class, i.e., it has a state represented by the memory allocated by new() and the state is manipulated with the methods of its class. Conventionally speaking, an object is a value of a particular data type.
+
+2.3Selectors, Dynamic Linkage, and Polymorphisms
+Who does the messaging? The constructor is called by new() for a new memory area which is mostly uninitialized:
+void * new (const void * _class, ...)
+{	const struct Class * class = _class; void * p = calloc(1, class —> size);
+assert(p);
+* (const struct Class **) p = class;
+if (class —> ctor)
+{	va_list ap;
+va_start(ap, _class);
+p = class —> ctor(p, & ap); va_end(ap);
+}
+return p;
+}
+The existence of the struct Class pointer at the beginning of an object is extremely important. This is why we initialize this pointer already in new():
+
+
+
+object
+p
+
+...........
+
+class
+
+
+
+
+
+
+struct Class
+
+The type description class at the right is initialized at compile time. The object is created at run time and the dashed pointers are then inserted. In the assignment
+* (const struct Class **) p = class;
+p points to the beginning of the new memory area for the object. We force a conversion of p which treats the beginning of the object as a pointer to a struct Class and set the argument class as the value of this pointer.
+Next, if a constructor is part of the type description, we call it and return its result as the result of new(), i.e., as the new object. Section 2.6 illustrates that a clever constructor can, therefore, decide on its own memory management.
+Note that only explicitly visible functions like new() can have a variable parame- ter list. The list is accessed with a va_list variable ap which is initialized using the macro va_start() from stdarg.h. new() can only pass the entire list to the construc- tor; therefore, .ctor is declared with a va_list parameter and not with its own vari- able parameter list. Since we might later want to share the original parameters among several functions, we pass the address of ap to the constructor — when it returns, ap will point to the first argument not consumed by the constructor.
+delete() assumes that each object, i.e., each non-null pointer, points to a type description. This is used to call the destructor if any exists. Here, self plays the role of p in the previous picture. We force the conversion using a local variable cp and very carefully thread our way from self to its description:
+void delete (void * self)
+{	const struct Class ** cp = self;
+if (self && * cp && (* cp) —> dtor) self = (* cp) —> dtor(self);
+free(self);
+}
+The destructor, too, gets a chance to substitute its own pointer to be passed to free() by delete(). If the constructor decides to cheat, the destructor thus has a chance to correct things, see section 2.6. If an object does not want to be deleted, its destructor would return a null pointer.
+All other methods stored in the type description are called in a similar fashion. In each case we have a single receiving object self and we need to route the method call through its descriptor:
+
+
+int differ (const void * self, const void * b)
+{	const struct Class * const * cp = self;
+assert(self && * cp && (* cp) —> differ); return (* cp) —> differ(self, b);
+}
+The critical part is, of course, the assumption that we can find a type description pointer * self directly underneath the arbitrary pointer self. For the moment at least, we guard against null pointers. We could place a ‘‘magic number’’ at the beginning of each type description, or even compare * self to the addresses or an address range of all known type descriptions, but we will see in chapter 8 that we can do much more serious checking.
+In any case, differ() illustrates why this technique of calling functions is called dynamic linkage or late binding: while we can call differ() for arbitrary objects as long as they start with an appropriate type description pointer, the function that actually does the work is determined as late as possible — only during execution of the actual call, not before.
+We will call differ() a selector function. It is an example of a polymorphic func- tion, i.e., a function that can accept arguments of different types and act differently on them based on their types. Once we implement more classes which all contain
+.differ in their type descriptors, differ() is a generic function which can be applied to any object in these classes.
+We can view selectors as methods which themselves are not dynamically linked but still behave like polymorphic functions because they let dynamically linked functions do their real work.
+Polymorphic functions are actually built into many programming languages, e.g., the procedure write() in Pascal handles different argument types differently, and the operator + in C has different effects if it is called for integers, pointers, or float- ing point values. This phenomenon is called overloading: argument types and the operator name together determine what the operator does; the same operator name can be used with different argument types to produce different effects.
+There is no clear distinction here: because of dynamic linkage, differ() behaves like an overloaded function, and the C compiler can make + act like a polymorphic function — at least for the built-in data types. However, the C compiler can create different return types for different uses of the operator + but the function differ() must always have the same return type independent of the types of its arguments.
+Methods can be polymorphic without having dynamic linkage. As an example, consider a function sizeOf() which returns the size of any object:
+size_t sizeOf (const void * self)
+{	const struct Class * const * cp = self;
+assert(self && * cp); return (* cp) —> size;
+}
+
+
+All objects carry their descriptor and we can retrieve the size from there. Notice the difference:
+void * s = new(String, "text"); assert(sizeof s != sizeOf(s));
+sizeof is a C operator which is evaluated at compile time and returns the number of bytes its argument requires. sizeOf() is our polymorphic function which at run time returns the number of bytes of the object, to which the argument points.
+
+2.4An Application
+While we have not yet implemented strings, we are still ready to write a simple test program. String.h defines the abstract data type:
+extern const void * String;
+All our methods are common to all objects; therefore, we add their declarations to the memory management header file new.h introduced in section 1.4:
+void * clone (const void * self);
+int differ (const void * self, const void * b); size_t sizeOf (const void * self);
+The first two prototypes declare selectors. They are derived from the correspond-
+ing components of struct Class by simply removing one indirection from the declarator. Here is the application:
+#include "String.h" #include "new.h"
+int main ()
+{	void * a = new(String, "a"), * aa = clone(a); void * b = new(String, "b");
+printf("sizeOf(a) == %u\n", sizeOf(a)); if (differ(a, b))
+puts("ok");
+if (differ(a, aa))
+puts("differ?");
+if (a == aa)
+puts("clone?");
+delete(a), delete(aa), delete(b); return 0;
+}
+We create two strings and make a copy of one. We show the size of a String object — not the size of the text controlled by the object — and we check that two different texts result in different strings. Finally, we check that a copy is equal but not identical to its original and we delete the strings again. If all is well, the pro- gram will print something like
+sizeOf(a) == 8 ok
+
+2.5An Implementation — ‘‘String’’	17
+2.5An Implementation — String
+We implement strings by writing the methods which need to be entered into the type description String. Dynamic linkage helps to clearly identify which functions need to be written to implement a new data type.
+The constructor retrieves the text passed to new() and stores a dynamic copy in the struct String which was allocated by new():
+struct String {
+const void * class; /* must be first */ char * text;
+};
+static void * String_ctor (void * _self, va_list * app)
+{	struct String * self = _self;
+const char * text = va_arg(* app, const char *);
+self —> text = malloc(strlen(text) + 1); assert(self —> text);
+strcpy(self —> text, text); return self;
+}
+In the constructor we only need to initialize .text because new() has already set up
+.class.
+The destructor frees the dynamic memory controlled by the string. Since delete() can only call the destructor if self is not null, we do not need to check things:
+static void * String_dtor (void * _self)
+{	struct String * self = _self;
+free(self —> text), self —> text = 0; return self;
+}
+String_clone() makes a copy of a string. Later both, the original and the copy, will be passed to delete() so we must make a new dynamic copy of the string’s text. This can easily be done by calling new():
+static void * String_clone (const void * _self)
+{	const struct String * self = _self;
+return new(String, self —> text);
+}
+String_differ() is certainly false if we look at identical string objects and it is true if we compare a string with an entirely different object. If we really compare two distinct strings, we try strcmp():
+static int String_differ (const void * _self, const void * _b)
+{	const struct String * self = _self; const struct String * b = _b;
+if (self == b) return 0;
+
+
+if (! b || b —> class != String) return 1;
+return strcmp(self —> text, b —> text);
+}
+Type descriptors are unique — here we use that fact to find out if our second argu- ment really is a string.
+All these methods are static because they should only be called through new(), delete(), or the selectors. The methods are made available to the selectors by way of the type descriptor:
+#include "new.r"
+static const struct Class _String = { sizeof(struct String), String_ctor, String_dtor, String_clone, String_differ
+};
+const void * String = & _String;
+String.c includes the public declarations in String.h and new.h. In order to properly initialize the type descriptor, it also includes the private header new.r which con- tains the definition of the representation for struct Class shown in section 2.2.
+
+2.6Another Implementation — Atom
+To illustrate what we can do with the constructor and destructor interface we implement atoms. An atom is a unique string object; if two atoms contain the same strings, they are identical. Atoms are very cheap to compare: differ() is true if the two argument pointers differ. Atoms are more expensive to construct and destroy: we maintain a circular list of all atoms and we count the number of times an atom is cloned:
+struct String {
+const void * class;	/* must be first */ char * text;
+struct String * next; unsigned count;
+};
+static struct String * ring;	/* of all strings */ static void * String_clone (const void * _self)
+{	struct String * self = (void *) _self;
+++ self —> count; return self;
+}
+Our circular list of all atoms is marked in ring, extends through the .next com- ponent, and is maintained by the string constructor and destructor. Before the con- structor saves a text it first looks through the list to see if the same text is already stored. The following code is inserted at the beginning of String_ctor():
+
+2.6Another Implementation — ‘‘Atom’’	19
+
+if (ring)
+{	struct String * p = ring;
+do
+if (strcmp(p —> text, text) == 0)
+{	++ p —> count; free(self); return p;
+
+
+
+}
+else
+
+}
+while ((p = p —> next) != ring);
+
+
+ring = self;
+
+self —> next = ring —> next, ring —> next = self; self —> count = 1;
+If we find a suitable atom, we increment its reference count, free the new string object self and return the atom p instead. Otherwise we insert the new string object into the circular list and set its reference count to 1.
+The destructor prevents deletion of an atom unless its reference count is decre- mented to zero. The following code is inserted at the beginning of String_dtor():
+if (—— self —> count > 0) return 0;
+assert(ring);
+if (ring == self)
+ring = self —> next; if (ring == self)
+ring = 0;
+else
+{	struct String * p = ring;
+while (p —> next != self)
+{	p = p —> next; assert(p != ring);
+}
+p —> next = self —> next;
+}
+If the decremented reference count is positive, we return a null pointer so that delete() leaves our object alone. Otherwise we clear the circular list marker if our string is the last one or we remove our string from the list.
+With this implementation our application from section 2.4 notices that a cloned string is identical to the original and it prints
+sizeOf(a) == 16 ok
+clone?
+
+
+2.7Summary
+Given a pointer to an object, dynamic linkage lets us find type-specific functions: every object starts with a descriptor which contains pointers to functions applicable to the object. In particular, a descriptor contains a pointer to a constructor which initializes the memory area allocated for the object, and a pointer to a destructor which reclaims resources owned by an object before it is deleted.
+We call all objects sharing the same descriptor a class. An object is an instance of a class, type-specific functions for an object are called methods, and messages are calls to such functions. We use selector functions to locate and call dynamically linked methods for an object.
+Through selectors and dynamic linkage the same function name will take dif- ferent actions for different classes. Such a function is called polymorphic.
+Polymorphic functions are quite useful. They provide a level of conceptual abstraction: differ() will compare any two objects — we need not remember which particular brand of differ() is applicable in a concrete situation. A cheap and very convenient debugging tool is a polymorphic function store() to display any object on a file descriptor.
+
+2.8Exercises
+To see polymorphic functions in action we need to implement Object and Set with dynamic linkage. This is difficult for Set because we can no longer record in the set elements to which set they belong.
+There should be more methods for strings: we need to know the string length, we want to assign a new text value, we should be able to print a string. Things get interesting if we also deal with substrings.
+Atoms are much more efficient, if we track them with a hash table. Can the value of an atom be changed?
+String_clone() poses an subtle question: in this function String should be the same value as self > class. Does it make any difference what we pass to new()?
