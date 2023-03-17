@@ -1,0 +1,807 @@
+7
+The ooc Preprocessor Enforcing a Coding Standard
+
+
+Looking over the last chapter, it seems that we have solved the big problem of cleaning up class maintenance by introducing another big problem: we now have an awful number of conventions about how certain functions have to be written (most notably a metaclass constructor) and which additional functions must be pro- vided (selectors, superclass selectors, and initializations). We also have rules for defensive coding, i.e., argument checking, but the rules are not uniform: we should be paranoid in selectors and statically linked methods but we can be more trusting in dynamically linked methods. If we should decide to change our rules at a later date, we will likely have to revise a significant amount of rather standard code — a repetitive and error-prone process.
+In this chapter we will look at the design of a preprocessor ooc which helps us to stick to the conventions developed in the last chapter. The preprocessor is sim- ple enough to be implemented in a few days using awk [AWK88], and it enables us to follow (and later redesign) our coding conventions. ooc is documented with a manual page in appendix C, the implementation is detailed in appendix B, and the complete source code is available as part of the sources to this book.
+ooc is certainly not intended to introduce a new programming language — we are still working with ANSI-C and the output from ooc is exactly what we would write by hand as well.
+
+7.1Point Revisited
+We want to engineer a preprocessor ooc which helps us maintain our classes and coding standards. The best way to design such a preprocessor is to take a typical, existing example class, and see how we can simplify our implementation effort using reasonable assumptions about what a preprocessor can do. In short, let us ‘‘play’’ preprocessor for a while.
+Point from chapter 4 and section 6.10 is a good example: it is not the root class of our system, it requires a new metaclass, and it has a few, typical methods. From now on we will use italics and refer to it as Point to emphasize that it only serves as a model for what our preprocessor has to handle.
+We start with a more or less self-explanatory class description that we can easily understand and that is not too hard for an awk based preprocessor to read:
+% PointClass : Class Point: Object { // header
+int x;	// object components
+int y;
+%	// statically linked
+void move (_self, int dx, int dy);
+%-	// dynamically linked
+void draw (const _self);
+%}
+
+
+Boldface in this class description indicates items that ooc recognizes; the regular line printer font is used for items which the preprocessor reads here and repro- duces elsewhere. Comments start with // and extend to the end of a line; lines can be continued with a backslash.
+Here we describe a new class Point as a subclass of Object. The objects have new components x and y, both of type int. There is a statically linked method move() that can change its object using the other parameters. We also introduce a new dynamically linked method draw() ; therefore, we must start a new metaclass PointClass by extending the meta superclass Class. The object argument of draw() is const, i.e., it cannot be changed.
+If we do not have new dynamically linked methods, the description is even simpler. Consider Circle as a typical example:
+% PointClass  Circle: Point {	// header
+int rad;	// object component
+%}	// no static methods
+These simple, line-oriented descriptions contain enough information so that we can completely generate interface files. Here is a pattern to suggest how ooc would create Point.h:
+#ifndef Point_h #define Point_h
+
+#include "Object.h"
+
+extern const void * Point;
+
+for all methods in %
+void move (void * self, int dx, int dy);
+
+if there is a new metaclass
+extern const void * PointClass ;
+
+for all methods in %-
+void draw (const void * self); void initPoint (void);
+#endif
+Boldface marks parts of the pattern common to all interface files. The regular typeface marks information which ooc must read in the class description and insert into the interface file. Parameter lists are manipulated a bit: _self or const _self are converted to suitable pointers; other parameters can be copied directly.
+Parts of the pattern are used repeatedly, e.g., for all methods with a certain link- age or for all parameters of a method. Other parts of the pattern depend on condi- tions such as a new metaclass being defined. This is indicated by italics and inden- tation.
+
+
+The class description also contains enough information to produce the representation file. Here is a pattern to generate Point.r:
+#ifndef Point_r #define Point_r
+
+#include "Object.r"
+
+struct Point { const struct Object _;
+for all components
+int x; int y;
+};
+
+if there is a new metaclass
+struct PointClass { const struct Class _;
+for all methods in %-
+void (* draw) (const void * self);
+};
+
+for all methods in %-
+void super_draw (const void * class, const void * self);
+
+#endif
+The original file can be found in section 6.10. It contains definitions for two access macros x() and y(). So that ooc can insert them into the representation file, we adopt the convention that a class description file may contain extra lines in addi- tion to the class description itself. These lines are copied to an interface file or, if they are preceded by a line with %prot, to a representation file. prot refers to pro- tected information — such lines are available to the implementations of a class and its subclasses but not to an application using the class.
+The class description contains enough information so that ooc can generate a significant amount of the implementation file as well. Let us look at the various parts of Point.c as an example:
+#include "Point.h"	// include
+#include "Point.r"
+First, the implementation file includes the interface and representation files.
+// method header void move (void * _self, int dx, int dy) {
+for all parameters	// importing objects
+if parameter is a Point
+struct Point * self = _self;
+
+for all parameters	// checking objects
+if parameter is an object
+assert(_self);
+
+...	// method body
+
+
+For statically linked methods we can check that they are permitted for the class before we generate the method header. With a loop over the parameters we can initialize local variables from all those parameters which refer to objects in the class to which the method belongs, and we can protect the method against null pointers.
+// method header
+static void Point_draw (const void * _self) {
+for all parameters	// importing objects
+if parameter is a Point
+const struct Point * self = _self;
+
+...	// method body
+For dynamically linked methods we also check, generate headers, and import objects. The pattern can be a bit different to account for the fact that the selector should have already checked that the objects are what they pretend to be.
+There are a few problems, however. As a subclass of Object, our class Point may overwrite a dynamically linked method such as ctor() that first appeared in Object. If ooc is to generate all method headers, we have to read all superclass descriptions back to the root of the class tree. From the superclass name Object in the class description for Point we have to be able to find the class description file for the superclass. The obvious solution is to store a description for Object in a file with a related name such as Object.d.
+static void * Point_ctor (void * _self, va_list * app) {
+...
+Another problem concerns the fact that Point_ctor() calls the superclass selector, and, therefore, does not need to import the parameter objects like Point_draw() did. It is probably a good idea if we have a way to tell ooc each time whether or not we want to import and check objects.
+if there is a new metaclass for all methods in %-
+void draw (const void * _self) { // selector
+const struct PointClass * class = classOf(_self);
+
+assert(class -> draw); class -> draw(self);
+}
+// superclass selector
+void super_draw (const void * class, const void * _self) { const struct PointClass * superclass = super(class);
+
+assert(_self && superclass -> draw); superclass -> draw(self);
+}
+If the class description defines a new metaclass, we can completely generate the selectors and superclass selectors for all new dynamically linked methods. If we want to, in each selector we can use loops over the parameters and check that there are no null pointers posing as objects.
+
+
+if there is a new metaclass
+// metaclass constructor
+static void * PointClass _ctor (void * _self, va_list * app) {
+{	struct PointClass * self =
+super_ctor( PointClass , _self, app); typedef void (* voidf) ();
+voidf selector; va_list ap = * app;
+
+while ((selector = va_arg(ap, voidf)))
+{	voidf method = va_arg(ap, voidf);
+
+for all methods in %-
+if (selector == (voidf) draw)
+{	* (voidf *) & self -> draw = method; continue;
+}
+}
+return self;
+}
+With a loop over the method definitions in the class description we can completely generate the metaclass constructor. Somehow, however, we will have to tell ooc the appropriate method header to use for ctor() — a different project might decide on different conventions for constructors.
+const void * Point;	// class descriptions
+if there is a new metaclass
+const void * PointClass ;
+
+void initPoint (void)	// initialization
+{
+if there is a new metaclass
+if (! PointClass )
+PointClass = new(Class, "PointClass ",
+Class, sizeof(struct PointClass ), ctor, PointClass _ctor,
+(void *) 0);
+
+if (! Point)
+Point = new(PointClass , "Point",
+Object, sizeof(struct Point),
+for all overwritten methods ctor, Point_ctor , draw, Point_draw,
+(void *) 0);
+}
+The initialization function depends on a loop over all dynamically linked methods overwritten in the implementation.
+
+
+7.2Design
+Let us draw a few conclusions from the experiment of preprocessing Point. We started with a fairly simple, line-oriented class description:
+interface lines	// arbitrary
+%prot
+representation lines
+
+% metaclass[: metasuper] class: super {	// header
+...	// object components
+%	// statically linked
+type name ([const] _self, ...);
+...
+%-	// dynamically linked
+type name ([const] _self, ...);
+...
+%}
+The only difficulty is that we need to untangle the parameter lists and split type and name information in each declarator. A cheap solution is to demand that const, if any, precede the type and that the type completely precede the name.* We also recognize the following special cases:
+_self	message target in the current class
+_name	other object in the current class
+class @ name	object in other class
+All of these can be preceded by const. Objects in the current class are derefer- enced when they are imported.
+The file name for a class description is the class name followed by .d so that ooc can locate superclass descriptions. We do not have to worry much about the metaclass: either a class has the same metaclass as its superclass, or a class has a new metaclass and the superclass of this metaclass is the metaclass of the class’ superclass. Either way, if we read the superclass description, we have sufficient information to cope with the metaclass.
+Once ooc has digested a class description, it has enough information to gen- erate the interface and the representation file. It is wise to design a command as a filter, i.e., to require explicit i/o redirection to create a file, so we arrive at the follow- ing typical invocations for our preprocessor:
+$ ooc Point —h > Point.h	# interface file
+$ ooc Point —r > Point.r	# representation file
+The implementation file is more difficult. Somehow ooc must find out about method bodies and whether or not parameters should be checked and imported. If we add the method bodies to the class description file, we keep things together, but we cause a lot more processing: during each run ooc has to load class descrip- tion files back to the root class, however, method bodies are only interesting in the outermost description file. Additionally, implementations are more likely to change
+
+* If necessary, this can always be arranged with a typedef.
+
+7.3Preprocessing	79
+
+than interfaces; if method bodies are kept with the class description, make will recreate the interface files every time we change a method body, and this probably leads to lots of unnecessary recompilations.*
+A cheap solution would be to let ooc read a class description and produce a skeleton implementation file containing all possible method headers for a class together with the new selectors, if any, and the initialization code. This requires a loop from the class back through its superclasses to generate headers and fake bodies for all the dynamically linked methods which we encounter along the way. ooc would be invoked like this:
+$ ooc Point —dc > skeleton # starting an implementation
+This provides a useful starting point for a new implementation but it is difficult to maintain: The skeleton will contain all possible methods. The basic idea is to erase those which we do not need. However, every method will appear twice: once with a header and a fake body and once in the argument list to create the class description. It is hard, but absolutely essential, to keep this synchronized.
+ooc is supposed to be a development and maintenance tool. If we change a method header in a class description it is only reasonable to expect that ooc pro- pagates the change to all implementation files. With the skeleton approach we can only produce a new skeleton and manually edit things back together — not entirely a pleasing prospect!
+If we do not want to store method bodies within a class description and if we require that ooc change an existing implementation file, we are led to design ooc as a preprocessor. Here is a typical invocation:
+$ ooc Point Point.dc > Point.c	# preprocessing
+ooc loads the class description for Point and then reads the implementation file Point.dc and writes a preprocessed version of this file to standard output. We can even combine this with the skeleton approach described above, as long as we create the skeleton with preprocessing statements rather than as an immutable C file.
+
+7.3Preprocessing
+What preprocessing statements should ooc provide? Looking over our experiment with Point in section 7.1 there are three areas where ooc can help: given a method name, it knows the method header; given a method, it can check and import the object parameters; somewhere it can produce selectors, the metaclass constructor, and the initialization function as required. Experimenting once again with Point, the following implementation file Point.dc seems reasonable:
+% move {
+%casts
+self —> x += dx, self —> y += dy;
+}
+
+* yacc has a similar problem with the header file y.tab.h . The standard approach is to duplicate this file, rewrite the copy only if it is new, and use the copy in makefile rules. See [K&P84].
+
+
+% Point ctor {
+struct Point * self = super_ctor(Point, _self, app);
+self —> x = va_arg(* app, int); self —> y = va_arg(* app, int); return self;
+}
+% Point draw {
+%casts
+printf("\".\" at %d,%d\n", x(self), y(self));
+}
+%init
+Boldface indicates what ooc finds interesting:
+% method {	header for statically linked method
+% class method {	header to overwrite dynamically linked method
+%casts	import object parameters
+%init	create selectors and initialization code
+For a method with static linkage, we already know the class for which it is declared. However, the class may be specified anyway, and if we should decide to change the method’s linkage later, we do not need to edit the source again.
+There is a question whether we should not require that the method header be spelled out by the programmer, parameter list and all. While this would make the implementation file easier to read, it is harder to maintain if a method definition is changed. It is also (marginally) harder to parse.
+
+7.4Implementation Strategy
+We know what ooc has to do. How do we write the preprocessor? For reasons of efficiency, we may eventually have to resort to a platform like lex and yacc, but a first implementation is a lot cheaper if we use a string programming language like awk or perl. If this works out, we know the necessary algorithms and data struc- tures, and it should be easy to transcribe them into a more efficient implementa- tion; we might even use something like an awk to C translator to do the job. Above all, however, with a cheap first implementation we can verify that our idea is feasi- ble and convenient in the first place.
+ooc parses the class descriptions and builds a database. Given the database, command line options decide what will be generated. As we have seen, generation can be based on some sort of pattern with words to be printed directly and words to be replaced with information from the database. Our patterns contained loops, however, so it seems that a pattern really is an awk function with control structures and variables.
+A first implementation of ooc actually worked this way, but it proved to be diffi- cult to change. There is a much better way: a simple report language with text replacement, loops, and conditionals, which is used to express a pattern and which is interpreted by ooc to generate output.
+
+7.4Implementation Strategy	81
+
+The implementation is explained in more detail in appendix B. The report language is defined as part of the ooc manual in appendix C. The report language has about twenty five replacements, ten loops, two conditionals, and a way to call a report as part of another report. As an example, here is how selectors could be generated:
+`{if `newmeta 1
+`{%—
+`result `method ( `{() `const `type `_ `name `}, ) { `n
+`t	const struct `meta * class = classOf(self); `n
+`%casts
+`t	assert(class  —> `method ); `n
+`t	`{ifnot `result void return `} \
+class —> `method ( `{() `name `}, ); `n
+} `n
+`}
+`}
+Within reports, ooc finds all those words interesting that start with a back quote; groups start with `{ and end with `} and are either loops or conditionals; a report call starts with `%; all other words starting with a back quote are replaced with informa- tion from the database.
+`{if takes the next two words and executes the rest of the group if the words are equal. `newmeta will be replaced by 1 if ooc works with a class description that defines a new metaclass. Therefore, the selectors are only generated for a new metaclass.
+`{% is a loop over the dynamically linked methods in the class description.
+`method is replaced by the current method name; `result is the current result type.
+`{() is a loop over the parameters of the current method. The meaning of
+`const, `type, and `name should be fairly obvious: they are the pieces of the current parameter declarator. `_ is an underscore if the current parameter is an object of the current class. `}, is a little trick: it emits a comma, if there is another parameter, and it terminates a loop like any other token starting with `}.
+`%casts calls another report, casts, which is responsible for importing object parameters. For now, this report looks about as follows:
+% casts	// the %casts statement
+`{()	// import
+`{if `_ _
+`t `const struct `cast * `name = _ `name ; `n
+`}
+`}n
+`{if `linkage %	// for static linkage, need to check
+`%checks
+`}
+A line starting with % precedes reports in a report file and introduces the report name. The rest of the casts report should be clear: `cast refers to the name of the class of a parameter object and `linkage is the linkage of the current method, i.e.,
+
+
+one of the section symbols in the class description. We construct a local variable to dereference a parameter if it is an object in the current class. `}n is another trick: it emits a newline if anything was generated for a group.
+%casts is also responsible for checking any objects supplied as parameters to a method with static linkage. Since selectors have a similar problem, we use a separate report checks that can be called from a report to generate selectors:
+% checks	// check all object parameters
+`{()
+`{ifnot `cast `
+`t assert( `name ); `n
+`}fi
+`}n
+Until the next chapter, we can at least guard against null pointers by calling assert(). This test is required for objects: ` is replaced by nothing, i.e., we generate assert() if we are looking at a parameter object from an arbitrary class.
+Two words have not been explained yet: `t generates a tab and `n generates a newline character. We want to generate legible C programs; therefore, we have to closely monitor how much white space is generated. So that we may indent reports based on their own control structures in the groups, ooc will not generate leading white space and it will only generate a single empty line in a row. `t must be used to achieve indentation and `n must be specified to break the output into lines.*
+
+7.5Object Revisited
+In section 7.1 we saw that in order to work on Point we need to collect information for its superclasses all the way back to the root class. So how do we specify Object? It would certainly not make sense to define Object as part of the awk pro- gram. The obvious approach is to write a class description file:
+#include <stdarg.h> #include <stddef.h> #include <stdio.h>
+%prot
+#include <assert.h>
+% Class Object {
+const Class @ class;	// object’s description
+%
+void delete (_self);	// reclaim instance const void * classOf (const _self); // object’s class size_t sizeOf (const _self);	// object’s size
+
+
+
+* Experiments with the beautifiers cb and indent have not produced acceptable results. The words `t and `n are only a minor nuisance and monitoring the generation of leading white space and successive newlines does not overly complicate the report generator.
+
+7.5 ‘‘Object’’ Revisited	83
+
+%—
+void * ctor (_self, va_list * app);	// constructor void * dtor (_self);	// destructor
+int differ (const _self, const Object @ b); // true if != int puto (const _self, FILE * fp);	// display
+%}
+Unfortunately, this is a special case: as the root class, Object has no superclass, and as the first metaclass, Class has no meta superclass. Only one class descrip- tion has this property; therefore, we let ooc recognize this special syntax for the class header as the description of the `root and `metaroot classes.
+Class poses another problem: we saw in section 7.1 that new metaclasses can be declared right with a new class because they can only have method links as new components. Class is the first metaclass and does have some extra components:
+% Class Class: Object {
+const char * name;	// class’ name
+const Class @ super;	// class’ superclass
+size_t size;	// object’s memory size
+%
+Object @ new (const _self, ...);	// create instance const void * super (const _self);	// class’ superclass
+%}
+It turns out that our syntax for class descriptions is quite sufficient to describe Class. It is another special case for ooc: it is the only class that is allowed to have itself as a metaclass.
+If we put both descriptions in the same class description file Object.d, and if we let Object precede Class, the search for class descriptions in ooc will terminate all by itself. Our database is complete.
+We could write the implementation of Object and Class by hand — there is little point in adding special code to ooc if it is only used to generate a single implemen- tation. However, our report generation mechanism is good enough to be adapted for Object and we can get a substantial amount of assistance.
+The interface files for Point and Object are quite analogous, with the exception that Object.h has no superclass interface to include and does not declare an initiali- zation function. The corresponding report file h.rep is used many times, however, so we should avoid cluttering it up with conditionals that are not usually needed. Instead, we add a parameter to the command line of ooc:
+$ ooc —R Object —h > Object.h
+This parameter causes a special report file hR.rep to be loaded which is tailored to the root class. Both report files mostly generate method headers and they can share yet another report file header.rep which contains the header report used in both cases.
+Similarly, the representation files of Point and Object have much in common, and we use R to load a report file rR.rep in place of r.rep to account for the differ- ences:
+
+
+$ ooc —R Object —r > Object.r
+Object.r has no superclass representation to include, and the metaclass structure for Class starts out with the extra components. The common code to declare superclass selectors and methods as metaclass components is located in another report file va.rep.
+Finally, we can use R and one more report file cR.rep in place of c.rep to help in generating the implementation:
+$ ooc —R Object Object.dc > Object.c
+ooc will add include statements and preprocess method headers in Object.dc as in any other implementation file. The only difference lies in the implementation of %init: We can still let ooc generate the selectors and superclass selectors, but we have to code the static initialization of the class descriptions shown in section
+6.7 by hand.
+There is a question how the metaclass constructor Class_ctor() should be writ- ten. If we do it by hand in Object.dc we essentially code the loop to process the selector/method pairs twice: once in Object.dc for Class_ctor() and once in the report file c.rep for all other classes. It turns out that we have enough information to do it in cR.rep. If we assume that the first few arguments to the constructor appear in the order of the components specified for Class we can generate the entire constructor and thus share the loop code as a report meta-ctor-loop in a common report file etc.rep.
+
+7.6Discussion
+Object demonstrates something that is both a strength and a weakness of our tech- nique: we have a choice where to implement our decisions. Code can be placed in a class description or implementation, it can be turned into a report, or it can be buried somewhere in the awk program.
+Obviously, we should be very careful about the last option: ooc is intended to be used for more than one project; therefore, the awk program should be kept free of any inherent knowledge about a project. It is allowed to collect information and offer it for replacement, and it is required to connect preprocessor statements to reports, but it should assume nothing about report contents or ordering.
+The reports can be changed between projects and they are the place to enforce coding standards. Reports and all other files like class descriptions and implemen- tations are searched in directories specified as an environment variable OOCPATH. This can be used to load different versions of the reports for different projects.
+Our approach for Object demonstrates the flexibility of replacing reports: we can share common report code by calling reports in common files and we can avoid the overhead of checking for a special case in most processing. While one-of-a-kind code can be written into an implementation file, it is almost as easy to write it as a report so that it can benefit from report generation. There is hardly an excuse for duplicating code.
+
+
+In general, report generation has advantages and drawbacks. On the positive side, it simplifies the development of a class hierarchy and changes during mainte- nance because the reports are a single, central place to enforce coding standards. If we want to trace selector calls, for example, we simply insert a trace line into the selector body in the reports file, and the trace will be generated all over.
+Report generation takes more execution time than plain function calls, how- ever. A preprocessor should generate #line stamps for the C compiler so that the error messages refer to the original source lines. There is a provision for generating #line stamps in ooc, but with report generation the #line stamps are not as good as they perhaps could be. Maybe once our reports are stable, we could write another preprocessor to generate an awk program from the reports?
+
+7.7An Example — List, Queue, and Stack
+Let us look at a few new classes implemented from scratch using ooc so that we can appreciate the effort we are now spared. We start with a List implemented as a double-ended ring buffer that will dynamically expand as needed.
+
+begin	end
+
+buf
+
+count dim
+begin and end limit the used part of the list, dim is the maximal buffer size, and count is the number of elements currently stored in the buffer. count makes it easy to distinguish between a full and an empty buffer. Here is the class descrip- tion List.d:
+% ListClass: Class List: Object {
+const void ** buf; // const void * buf [dim] unsigned dim;	// current buffer dimension unsigned count;	// # elements in buffer
+unsigned begin;	// index of takeFirst slot, 0..dim unsigned end;	// index of addLast slot, 0..dim
+%
+Object @ addFirst (_self, const Object @ element); Object @ addLast (_self, const Object @ element); unsigned count (const _self);
+Object @ lookAt (const _self, unsigned n); Object @ takeFirst (_self);
+Object @ takeLast (_self);
+%—		// abstract, for Queue/Stack Object @ add (_self, const Object @ element); Object @ take (_self);
+%}
+
+
+The implementation in List.dc is not very difficult. The constructor provides an ini- tial buffer:
+% List ctor {
+struct List * self = super_ctor(List, _self, app);
+if (! (self —> dim = va_arg(* app, unsigned))) self —> dim = MIN;
+self —> buf = malloc(self —> dim * sizeof * self —> buf); assert(self —> buf);
+return self;
+}
+Normally, the user will provide the minimal buffer size. As a default we define MIN with a suitable value. The destructor eliminates the buffer but not the elements still in it:
+% List dtor {
+%casts
+free(self —> buf), self —> buf = 0; return super_dtor(List, self);
+}
+addFirst() and addLast() add one element at begin or end:
+% List addFirst {
+%casts
+if (! self —> count)
+return add1(self, element); extend(self);
+if (self —> begin == 0)
+self —> begin = self —> dim;
+self —> buf[—— self —> begin] = element; return (void *) element;
+}
+% List addLast {
+%casts
+if (! self —> count)
+return add1(self, element); extend(self);
+if (self —> end >= self —> dim) self —> end = 0;
+self —> buf[self —> end ++] = element; return (void *) element;
+}
+Both functions share the code to add a single element:
+static void * add1 (struct List * self, const void * element)
+{
+self —> end = self —> count = 1;
+return (void *) (self —> buf[self —> begin = 0] = element);
+}
+The invariants are different, however: if count is not zero, i.e., if there are any ele- ments in the buffer, begin points to an element while end points to a free slot to
+
+
+be filled. Either value may be just beyond the current range of the buffer. The buffer is used as a ring; therefore, we first map the variables around the ring before we access the buffer. extend() is the hard part: if there is no more room, we use realloc() to double the size of the buffer:
+static void extend (struct List * self) // one more element
+{
+if (self —> count >= self —> dim)
+{	self —> buf =
+realloc(self —> buf, 2 * self —> dim
+* sizeof * self —> buf); assert(self —> buf);
+if (self —> begin && self —> begin != self —> dim)
+{	memcpy(self —> buf + self —> dim + self —> begin, self —> buf + self —> begin,
+(self —> dim — self —> begin)
+* sizeof * self —> buf); self —> begin += self —> dim;
+
+}
+else
+
+}
+
+
+
+self —> begin = 0;
+
+++ self —> count;
+}
+realloc() copies the pointers stored in buf[], but if our ring does not start at the beginning of the buffer, we have to use memcpy() to shift the beginning of the ring to the end of the new buffer.
+The remaining functions are much simpler. count() is simply an access func- tion for the count component. lookAt() uses an arithmetic trick to return the proper element from the ring:
+% List lookAt {
+%casts
+return (void *) (n >= self —> count ? 0 :
+self —> buf[(self —> begin + n) % self —> dim]);
+}
+takeFirst() and takeLast() simply reverse the invariants of the corresponding add
+functions. Here is one example:
+% List takeFirst {
+%casts
+if (! self —> count) return 0;
+—— self —> count;
+if (self —> begin >= self —> dim) self —> begin = 0;
+return (void *) self —> buf[self —> begin ++];
+}
+takeLast() is left as an exercise — as are all selectors and initializations.
+
+
+List demonstrates that ooc gets us back to dealing with the implementation issues of a class as a data type rather than with the idiosyncrasies of an object- oriented coding style. Given a reasonable base class, we can easily derive more problem-specific classes. List introduced dynamically linked methods add() and take() so that a subclass can impose an access discipline. Stack operates on one end:
+Stack.d
+% ListClass Stack: List {
+%}
+Stack.dc
+% Stack add {
+return addLast(_self, element);
+}
+% Stack take {
+return takeLast(_self);
+}
+%init
+Queue can be derived from Stack and overwrite take() or it can be a subclass of List and define both methods. List itself does not define the dynamically linked methods and would; therefore, be called an abstract base class. Our selectors are robust enough so that we will certainly find out if somebody tries to use add() or take() for a List rather than a subclass. Here is a test program demonstrating that we can add plain C strings rather than objects to a Stack or a Queue:
+#include "Queue.h"
+int main (int argc, char ** argv)
+{	void * q; unsigned n;
+initQueue();
+q = new(Queue, 1);
+while (* ++ argv) switch (** argv) { case ’+’:
+add(q, *argv + 1); break;
+case ’—’:
+puts((char *) take(q)); break;
+default:
+n = count(q); while (n —— > 0)
+{	const void * p = take(q);
+puts(p), add(q, p);
+}
+}
+return 0;
+}
+
+7.8Exercises	89
+
+If a command line argument starts with + it is added to the queue; for a  one ele- ment is removed. Any other argument displays the contents of the queue:
+$ queue +axel — +is +here . — . — . axel
+is here is here here
+Replacing the Queue by a Stack we can see the difference in the order of the removals:
+$ stack +axel — +is +here . — . — . axel
+is here here is is
+Because a Stack is a subclass of List there are various ways to nondestructively display the contents of the stack, for example:
+n = count(q); while (n —— > 0)
+{	const void * p = takeFirst(q);
+puts(p), addLast(q, p);
+}
+
+7.8 Exercises
+It is an interesting exercise to combine Queue with Point and Circle for a skeleton graphics program with redrawing capabilities.
+The reports r and include can be modified to implement the opaque structure definitions suggested in section 4.6.
+The init reports can be modified to generate a method to display a Class struc- ture.
+Selectors and superclass selectors are generated by reports in etc.rep. They can be modified to provide an execution trace or to experiment with various levels of parameter checking.
+The ooc command script and the modules main.awk and report.awk can be changed so that an argument x results in a report x.rep to be loaded, interpreted, and removed. Given that change, a new report flatten.rep can show all methods available to a class.
+
+91
+
+8
+Dynamic Type Checking Defensive Programming
+
+
+8.1Technique
+Every object is accessed as void *. While this simplifies writing code, it does invite disaster: manipulating a non-object or the wrong object in a method, or worse, selecting a method from a class description that does not contain it, will cause sig- nificant amounts of grief. Let us trace a call to a dynamically linked method. new() produces a circle and the selector draw() is applied to it:
+void * p = new(Circle, 1, 2, 3); draw(p);
+The selector believes and dereferences the result of classOf():
+void draw (const void * _self) {
+const struct PointClass * class = classOf(_self);
+assert(class —> draw); class —> draw(_self);
+}
+The selected method believes and dereferences _self, which is the original pointer value produced by new():
+static void Circle_draw (const void * _self) { const struct Circle * self = _self;
+printf("circle at %d,%d rad %d\n", x(self), y(self), self —> rad);
+}
+classOf() also believes and dereferences a pointer. As a small consolation, it makes sure that its result is not a null pointer:
+const void * classOf (const void * _self) { const struct Object * self = _self;
+assert(self);
+assert(self —> class); return self —> class;
+}
+In general, every assignment of a generic void * value to a pointer to some structure is suspect to begin with, and its legality ought to be verified. We have designed our methods to be polymorphic, i.e., the ANSI-C compiler cannot perform this check for us. We have to invent a dynamic type checking facility which closely limits how much damage a stray object or non-object can do.
+Fortunately, our void * values know what they are pointing to: they point to objects, which all inherit from Object and, therefore, contain the component .class
+
+
+pointing to their class description. Each class description is unique; therefore, the pointer value in .class can be used to determine if an object belongs to a particular class:
+int isA (const _self, const Class @ class); int isOf (const _self, const Class @ class);
+These are two new, statically linked methods for Object and thus for any object: isA() is true if an object directly belongs to a specific class; isOf() is true if an object is derived from a specific class. The following axioms hold:
+isA(0, anyClass)	always false isOf(0, anyClass)	always false isOf(x, Object)	true for all objects
+It turns out that yet another static method for Object is even more useful:
+void * cast (const Class @ class, const _self);
+If isOf(_self, class) is true, cast() returns its argument _self, otherwise cast() ter- minates the calling process.
+cast() is now going to replace assert() for most of our damage control. Wher- ever we are not so sure, we can wrap cast() around a dubious pointer to limit the damage which an unexpected value could do:
+cast(someClass, someObject);
+The function is also used for safely dereferencing pointers upon import to a method or selector:
+struct Circle * self = cast(Circle, _self);
+Notice that the parameters of cast() have the natural order for a casting operation: the class is written to the left of the object to be casted. isOf(), however, takes the same parameters in opposite order because in an if statement we would ask if an object ‘‘is of’’ a particular class.
+Although cast() accepts _self with a const qualifier, it returns the value without const to avoid error messages on assignment. The same pun happens to be in the ANSI-C standard: bsearch() delivers a void * result for a table passed as const void *.
+
+8.2An Example — list
+As an example of what we can do with isOf() and how safe cast() can be made, consider the following modification of the test program in section 7.7:
+#include "Circle.h" #include "List.h"
+int main (int argc, char ** argv)
+{	void * q; unsigned n;
+initList(); initCircle();
+
+8.2An Example — ‘‘list’’	93
+q = new(List, 1); while (* ++ argv)
+switch (** argv) { case ’+’:
+switch ((* argv)[1]) { case ’c’:
+addFirst(q, new(Circle, 1, 2, 3)); break;
+case ’p’:
+addFirst(q, new(Point, 4, 5)); break;
+default:
+addFirst(q, new(Object));
+}
+break; case ’—’:
+puto(takeLast(q), stdout); break;
+case ’.’:
+n = count(q); while (n —— > 0)
+{	const void * p = takeFirst(q);
+if (isOf(p, Point)) draw(p);
+else
+puto(p, stdout);
+addLast(q, p);
+}
+break; default:
+if (isdigit(** argv))
+addFirst(q, (void *) atoi(* argv));
+
+else
+
+}
+
+
+addFirst(q, * argv + 1);
+
+return 0;
+}
+For arguments starting with + this program will add circles, points, or plain objects to a list. The argument  will remove the last object and display it with puto(). The argument . will display the current contents of the list; draw() is used if an entry is derived from Point. Finally, there is a deliberate attempt to place numbers or other strings as arguments into the list although they would cause problems once they were removed. Here is a sample output:
+$ list +c +p + — . 1234 Circle at 0x122f4 Object at 0x12004
+"." at 4,5
+Object.c:66: failed assertion `sig == 0’
+
+
+As we shall see in section 8.4, addFirst() uses cast() to make sure it only adds objects to the list. cast() can even be made robust enough to discover that a number or a string tries to pose as an object.
+
+8.3Implementation
+With the axioms above, the methods isA() and isOf() are quite simple to imple- ment:
+% isA {
+return _self && classOf(_self) == class;
+}
+% isOf {
+if (_self)
+{	const struct Class * myClass = classOf(_self);
+if (class != Object)
+while (myClass != class) if (myClass != Object)
+myClass = super(myClass);
+
+else
+
+return 1;
+}
+
+
+return 0;
+
+return 0;
+}
+A first, very naive implementation of cast() would be based on isOf():
+% cast {
+assert(isOf(_self, class)); return (void *) _self;
+}
+isOf(), and therefore cast(), fails for null pointers. isOf() believes without further inquiry that any pointer points at least to an instance of Object; therefore, we can be sure that cast(Object, x) will only fail for null pointers. However, as we shall see in section 8.5, this solution can easily backfire.
+
+8.4Coding Standard
+The basic idea is to call cast() as often as necessary. When a statically linked method dereferences objects in its own class, it should do so with cast():
+void move (void * _self, int dx, int dy) { struct Point * self = cast(Point, _self);
+self —> x += dx, self —> y += dy;
+}
+If such a method receives objects from another class, it can still call cast() to make sure that the parameters are what they claim to be. We have introduced the
+%casts request of ooc to handle the import of a parameter list:
+
+
+% move {
+%casts
+self —> x += dx, self —> y += dy;
+}
+%casts is implemented with the report casts in etc.rep; therefore, we can control all object imports by changing this report. The original version was shown in sec- tion 7.4; here is how we introduce cast():
+% casts	// implement %casts request
+`{()	// import
+`{if `_ _
+`t `const struct `cast * `name = ` \
+cast( `cast , _ `name ); `n
+`}fi
+`}n
+`{if `linkage %	// for static linkage only
+`%checks
+`}fi
+The replacement `_ is defined as an underscore if the current parameter was speci- fied with a leading underscore, i.e., if it is in the current class. Instead of a plain assignment, we call cast() to check before we dereference the pointer.
+The first loop at import takes care of all the object in a method’s own class.
+The other objects are checked in the report checks:
+% checks	// check all other object parameters
+`{()
+`{ifnot `cast ` `{ifnot `_ _
+`t cast( `cast , `name ); `n
+`}fi `}fi
+`}n
+Originally, this loop generated assert() for all objects. Now we can restrict our attention to those objects which are not in the current class. For them we generate a call to cast() to make sure they are in their proper class.
+The report casts differentiates between methods with static and dynamic link- age. Statically linked methods need to do their own checking. casts and checks generate local variables for dereferencing and statements to check the other objects, i.e., %casts must be used at the end of the list of local variables declared at the top of a method body with static linkage.
+Dynamically linked methods are only called through selectors; therefore, the job of checking can mostly be delegated to them. %casts is still used to dereference the parameter objects in the current class, but it will only initialize local variables:
+Circle.dc
+% Circle draw {
+%casts
+printf("circle at %d,%d rad %d\n", x(self), y(self), self —> rad);
+}
+
+
+
+Point.c
+
+
+
+Circle.c
+
+
+
+void draw (const void * _self) {
+const struct Point * self = _self;
+...
+
+static void Circle_draw (const void * _self) {
+const struct Circle * self = cast(Circle, _self);
+...
+
+We have to be careful: while the selector could check if an object belongs to the current class Point, once it calls a subclass method like Circle_draw() we have to check there whether or not the object really is a Circle. Therefore, we let the selec- tor check the objects which are not in the current class, and we let the dynamically linked method check the objects in its own class. casts simply omits the call to checks for methods which are called through a selector.
+Now we have to modify the selectors. Fortunately, they are all generated by the report init, but there are several cases: selectors with a void result do not return the result of the actual method; selectors with a variable argument list must pass a pointer to the actual method. init calls the report selectors in etc.rep which in turn delegates the actual work to the report selector and various subreports. Here is a typical selector:
+int differ (const void * _self, const void * b) { int result;
+const struct Class * class = classOf(_self);
+assert(class —> differ); cast(Object, b);
+result = class —> differ(_self, b); return result;
+}
+This is generated by the report selector in etc.rep:*
+`%header { `n
+`%result
+`%classOf
+`%ifmethod
+`%checks
+`%call
+`%return
+} `n `n
+The reports result and return define and return the result variable, unless the return type is void:
+% result	// if necessary, define result variable
+`{ifnot `result void
+`t `result result;
+`}n
+
+* The actual report is slightly more complicated to account for methods with a variable parameter list.
+
+
+% return	// if necessary, return result variable
+`{ifnot `result void
+`t return result;
+`}n
+The report ifmethod checks if the desired method exists:
+% ifmethod	// check if method exists
+`t assert(class  —> `method ); `n
+We have to be a bit careful with the report classOf: if a selector retrieves a method from Class we can rely on classOf() to produce a suitable class description, but for subclasses we have to check:
+
+`{if `meta	`metaroot	
+`t const	struct `meta * class	=	classOf(_self); `n
+`} `{else			
+`t const	struct `meta * class	=	` \
+	cast( `meta	,	classOf(_self)); `n
+`} `n			
+The superclass selector is similar. Here is a typical example:
+int super_differ (const void * _class, const void * _self,
+const void * b) { const struct Class * superclass = super(_class);
+cast(Object, b);
+assert(superclass —> differ);
+return superclass —> differ(_self, b);
+}
+Once again, if we don’t work with Class we need to check the result of super(). Here is the report from etc.rep:
+% super—selector	// superclass selector
+`%super—header  { `n
+`{if `meta `metaroot	// can use super()
+`t const struct `meta * superclass  = super(_class); `n
+`} `{else	// must cast
+`t const struct `meta * superclass  = ` \
+cast( `meta , super(_class)); `n
+`} `n
+`%checks
+`t assert(superclass —> `method ); `n
+`t `{ifnot `result void return `} \ superclass —> `method \
+( `{() `_ `name `}, `{ifnot `,... ` , app `} ); `n
+} `n `n
+Other objects are checked with checks as if the superclass selector were a method with static linkage.
+
+
+Thanks to ooc and the reports we have established a defensive coding standard for all methods that we might implement. With the change to all selectors and with the convention of using %casts in all methods, we account for all objects passed as parameters: their pointers are checked upon import to the callee. As a conse- quence, the result of a method can go unchecked because the user of the result is expected to apply cast() to it.
+This is reflected by the convention of using classes in the return types of our methods. For example in List.d:
+Object @ addFirst (_self, const Object @ element);
+addFirst() was shown in section 7.7 and it returns a void *. ooc, however, gen- erates:
+struct Object * addFirst (void * _self, const void * element) { struct List * self = cast(List, _self);
+cast(Object, element);
+...
+return (void *) element;
+}
+struct Object is an incomplete type in an application program. This way the ANSI-C compiler checks that the result of a call to addFirst() is assigned to void * (to be checked later, hopefully) or that it is passed to a method expecting a void * which by our conventions will check it with cast(). In general, by a careful use of classes in the return types of methods, we can use the ANSI-C compiler to check for unlikely assignments. A class is a lot more restrictive than a void *.
+
+8.5Avoiding Recursion
+In section 8.3 we tried to implement cast() as follows:
+% cast {
+assert(isOf(_self, class)); return (void *) _self;
+}
+Unfortunately, this causes an infinite loop. To understand this, let us trace the calls:
+void * list = new(List, 1); void * object = new(Object);
+addFirst(list, object) { cast(List, list) {
+isOf(list, List) { classOf(list) {
+cast(Object, list) { ifOf(list, Object) {
+classOf(list) {
+cast() is based on isOf() which calls classOf() and possibly super(). Both of these methods observe our coding standard and import their parameters with %casts, which in turn calls cast() to check if the arguments are an Object or a Class,
+
+8.5Avoiding Recursion	99
+
+respectively. Our implementation of isOf() in section 8.3 calls classOf() before observing the third axiom that any object at least belongs to Object.
+How strong do we want type checking to be? If we trust our code, cast() is a no-op and could be replaced by a trivial macro. If we don’t trust our code, parame- ters and all other dereferencing operations need to be checked by being wrapped in cast() in all functions. Everybody has to use and then believe cast() and, clearly, cast() cannot employ other functions to do its checking.
+So what does cast(class, object) guarantee? At least the same as isOf(), namely that its object is not a null pointer and that its class description can be traced to the class argument. If we take the code of isOf(), and think defensively, we obtain the following algorithm:
+(_self = self) is an object
+(myClass = self —> class) is an object
+if (class != Object) class is an object
+while (myClass != class) assert(myClass != Object); myClass is a class description myClass = myClass —> super;
+return self;
+The critical parts are in italics: which nonzero pointer represents an object, how do we recognize a class description? One way to distinguish arbitrary pointers from pointers to objects is to let each object start with a magic number, i.e., to add a component .magic to the class description in Object.d:
+% Class Object {
+unsigned long magic;	// magic number
+const Class @ class;	// object’s description
+%
+...
+Once the magic number is set by new() and in the initialization of Class and Object, we check for it with the following macros:
+#define MAGIC	0x0effaced  // magic number for objects
+// efface: to make (oneself) modestly or shyly inconspicuous
+#define isObject(p) \
+( assert(p), \
+assert(((struct Object *) p) —> magic == MAGIC), p )
+Strictly speaking, we need not check that myClass is an object, but the two extra assertions are cheap. If we do not check that class is an object, it could be a null pointer and then we could slip an object with a null pointer for a class description past cast().
+The expensive part is the question whether myClass is a class description. We should not have very many class descriptions and we should know them all, so we could consult a table of valid pointers. However, cast() is one of the innermost functions in our code, so we should make it as efficient as possible. To begin with,
+
+
+myClass is the second element in a chain from an object to its class description and both have already been verified to contain a magic number. If we disregard the problem of stray pointers destroying class descriptions, it is reasonable to assume that the .super chain among the class descriptions remains unharmed after Class_ctor() sets it up. Therefore, we remove the test from the loop altogether and arrive at the following implementation for cast():
+static void catch (int sig)	// signal handler: bad pointer
+{
+assert(sig == 0);	// bad pointer, should not happen
+}
+% cast {
+void (* sigsegv)(int) = signal(SIGSEGV, catch); #ifdef SIGBUS
+void (* sigbus)(int) = signal(SIGBUS, catch); #endif
+const struct Object * self = isObject(_self);
+const struct Class * myClass = isObject(self —> class);
+if (class != Object)
+{	isObject(class);
+while (myClass != class)
+{	assert(myClass != Object); // illegal cast myClass = myClass —> super;
+}
+}
+#ifdef SIGBUS signal(SIGBUS, sigbus);
+#endif
+signal(SIGSEGV, sigsegv); return (void *) self;
+}
+Signal processing protects us from mistaking a numerical value for a pointer. SIG- SEGV is defined in ANSI-C and indicates an illegal memory access; SIGBUS (or
+_SIGBUS) is a second such signal defined by many systems.
+
+8.6Summary
+void * is a very permissive type which we had to resort to in order to construct polymorphic methods and, in particular, our mechanism for the selection of dynami- cally linked methods. Because of polymorphisms, object types need to be checked at runtime, i.e., when an object appears as a parameter of a method.
+Objects point to unique class descriptions; therefore, their types can be checked by comparing their class description pointers to the class descriptions known in a project. We have provided three new methods for this: isA() checks that an object belongs to a specific class, isOf() is true if an object belongs to a class or one of its subclasses, and cast() terminates the calling program if an object cannot be treated as a member of a certain class.
+
+8.7Exercises
+
+101
+
+
+
+As a coding standard we require that cast() is used whenever an object pointer needs to be dereferenced. In particular, methods with static linkage must use cast() on all their object parameters, selectors use it on all object parameters not in their own class, and methods with dynamic linkage use it on all object parameters which claim to be in their own class. Result values need not be checked by their producers, because the consumer can only dereference them by using cast() again.
+ooc provides significant assistance in enforcing this coding standard because it generates the selectors and provides the %casts statement for the import of parameters. %casts generates the necessary calls to cast() and should be used last in the local variable declarations of a method.
+cast() cannot prove the correctness of data. However, we try to make it fairly difficult or improbable for cast() to be defeated. The whole point of defensive pro- gramming is to recognize that programmers are likely to make mistakes and to limit how long a mistake can go unrecognized. cast() is designed to strike a balance between efficiency for correct programs and (early) detection of flaws.
+
+8.7 Exercises
+Technically, superclass selectors can only be used from within methods. We could decide not to check the parameters of superclass selectors. Is that really wise?
+We believe that a pointer identifies an object if the object starts with a magic number. This is expensive because it increases the size of every object. Could we only require that a class description must start with a magic number?
+The fixed part of a class description (name, superclass and size) can be pro- tected with a checksum. It has to be chosen carefully to permit static initialization for Class and Object.
+cast() duplicates the algorithm of isOf(). Can isOf() be changed so that we can use the naive implementation of cast() and not get into an infinite recursion?
+cast() is our most important function for producing error messages. Rather than a simple assert() the messages could contain the point of call, the expected class, and the class actually supplied.
