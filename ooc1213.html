@@ -1,0 +1,664 @@
+12
+Persistent Objects Storing and Loading Data Structures
+
+Section 6.3 introduced the dynamically linked method puto() in class Object which takes an object and describes it on a stream. For example,
+void * anObject = new(Object());
+...
+puto(anObject, stdout);
+produces about the following standard output:
+Object at 0x5410
+If we implement puto() for every class in a hierarchy we can display every object. If the output is designed well enough, we should be able to recreate the objects from it, i.e., objects can be parked in files and continue to exist from one invocation of an application to another. We call such objects persistent. Object oriented data- bases consist of persistent objects and mechanisms to search for them by name or content.
+
+12.1An Example
+Our calculator contains a symbol table with variables, constants, and functions. While constants and mathematical functions are predefined, we loose all variable values and user defined function definitions whenever we terminate execution. As a realistic example for using persistent objects we add two statements to the calcu- lator: save stores some or all variables and function definitions in files; load retrieves them again.
+$ value
+def sqr = $ * $
+def one = sqr(sin($)) + sqr(cos($)) let n = one(10)
+1
+save
+In this session with value we define the functions sqr() and one() to test that sin2x + cos2x  1. Additionally, we create the variable n with value 1. save without arguments writes the three definitions into a file value.stb.
+$ value load
+n + one(20)
+2
+Once we start value again we can use load to retrieve the definitions. The expres- sion demonstrates that we recover the value of the variable and both function defin- itions.
+
+
+save is implemented in the parser function stmt() just like let or def. With no argument we have to store all variables and functions; therefore, we simply pass the problem to Symtab:
+#define SYMTABFILE "value.stb" #define SYMBOLFILE "%s.sym"
+static void * stmt (void)
+{	void * sym, * node;
+switch (token) {
+...
+case SAVE:
+if (! scan(0))	/* entire symbol table */
+{	if (save(table, 0, SYMTABFILE)) error("cannot save symbol table");
+}
+else		/* list of symbols */ do
+{	char fnm [BUFSIZ];
+sprintf(fnm, SYMBOLFILE, name(symbol)); if (save(table, symbol, fnm))
+error("cannot save %s", name(symbol));
+} while (scan(0)); return 0;
+A more complicated syntax could permit a file name specification as part of save. As it is, we predefine SYMTABFILE and SYMBOLFILE: the entire symbol table is saved in value.stb and a single symbol like one would be filed in one.sym. The application controls the file name, i.e., it is constructed in parse.c and passed to save().
+Symtab.d
+% Class Symtab: Object {
+...
+
+%
+
+
+
+%}
+Symtab.dc
+
+
+...
+int save (const _self, const Var @ entry, const char * fnm); int load (_self, Symbol @ entry, const char * fnm);
+
+% Symtab save {
+const struct Symtab * self = cast(Symtab(), _self); FILE * fp;
+if (entry)	// one symbol
+{	if (! respondsTo(entry, "move")) return EOF;
+if (! (fp = fopen(fnm, "w"))) return EOF;
+puto(entry, fp);
+}
+
+
+A single symbol is passed as entry. There is no point in saving undefined symbols, constants, or math functions. Therefore, we only save symbols which support the method move(); as we shall see below, this method is used in loading a symbol from a file. save() opens the output file and lets puto() do the actual work. Saving all symbols is almost as easy:
+else	// entire table
+{	int i;
+if (! (fp = fopen(fnm, "w"))) return EOF;
+for (i = 0; i < self —> count; ++ i)
+if (respondsTo(self —> buf[i], "move")) puto(self —> buf[i], fp);
+}
+return fclose(fp);	// 0 or EOF
+}
+save() is defined as a method of Symtab because we need to loop over the ele- ments in .buf[]. The test whether or not a symbol should be stored in a file is not repeated outside of save(). However, Symtab should not know what kinds of sym- bols we have. This is why the decision to store is based on the acceptance of a move() and not on membership in certain subclasses of Symbol.
+It looks like loading should be totally symmetrical to storing. Again, parse.c
+decides on the file name and lets load() do the actual work:
+case LOAD:
+if (! scan(0))	/* entire symbol table */
+{	if (load(table, 0, SYMTABFILE)) error("cannot load symbol table");
+}
+else		/* list of symbols */ do
+{	char fnm [BUFSIZ];
+sprintf(fnm, SYMBOLFILE, name(symbol)); if (load(table, symbol, fnm))
+error("cannot load %s", name(symbol));
+} while (scan(0)); reclaim(Node(), sunder); return 0;
+Unfortunately, load() is entirely different from save(). There are two reasons: we should at least try to protect our calculator from somebody who tinkers with file names or contents; and while save() can just display something in the symbol table by applying puto(), it is quite likely that we have to enter or modify symbols in the table during the course of a save(). Retrieving persistent objects is very much like allocating and constructing them in the first place.
+Let us walk through load(). If a single symbol is to be loaded, its name is already in the symbol table. Therefore, we are either looking at an undefined Sym- bol or the symbol knows how to answer a move():
+
+
+% Symtab load {
+struct Symtab * self = cast(Symtab(), _self); const char * target = NULL;
+FILE * fp;
+int result = EOF; void * in;
+if (entry)
+if (isOf(entry, Symbol())
+|| respondsTo(entry, "move")) target = name(entry);
+else
+return EOF;
+If there is an entry, checking it early keeps us from working entirely in vain. Next, we access the file and try to read as many symbols from it as we can:
+if (! (fp = fopen(fnm, "r"))) return EOF;
+while (in = retrieve(fp))
+...
+if (! target && feof(fp)) result = 0;
+fclose(fp); return result;
+}
+If we are not looking for a particular entry, we are happy if we reach the end of file.
+retrieve() returns an object from a stream; this will be discussed in section 12.4.
+The body of the while loop deals with one symbol at a time. We are in real trouble if the retrieved object does not know about move(), because the stream cannot possibly have been written by save(). If that happens, it is time to quit the loop and let load() return EOF. Otherwise, if we are looking for a particular entry, we skip all symbols with different names.
+{	const char * nm; void ** pp;
+if (! respondsTo(in, "move")) break;
+if (target && strcmp(name(in), target)) continue;
+Technically, parse.c has set things up so that a file should either contain the desired single entry or an entire symbol table, but the strcmp() protects us from renamed or modified files.
+We are ready to bring the retrieved symbol into the symbol table. This is why load() is a Symtab method. The process is quite similar to screen(): we assume that retrieve() has taken care to dynamically save the name and we use search() to locate the name in the table. If we rediscover the retrieved name, we have just read a new symbol and we can simply insert it into the table.
+
+
+nm = name(in);
+pp = search(self, & nm);
+if (* pp == nm)	// not yet in table
+* pp = in;
+Most likely, however, load has been given the name of a new symbol to load. In this case, the name is already in the symbol table as an undefined Symbol with a dynamically saved name. We remove it completely and insert the retrieved symbol in its place.
+else if (isA(* pp, Symbol()))
+// not yet defined
+{	nm = name(* pp), delete(* pp), free((void *) nm);
+* pp = in;
+}	// might free target, but then we exit below
+If we reach this point we are faced with an existing symbol, i.e., a variable gets a new value or a function is redefined. However, we only overwrite a symbol that knows about move(), to protect against somebody changing the contents of our input file.
+else if (! respondsTo(* pp, "move"))
+{	nm = name(in); delete(in); free((void *) nm); continue;	// should not happen
+}
+else
+{	move(* pp, in);
+delete(in), free((void *) nm);
+}
+if (target)
+{	result = 0; break;
+}
+}
+If we found the desired entry we can leave the loop.
+We have to be very careful not to replace an existing symbol, because some expression might already point to it. This is why move() is introduced as a dynami- cally linked method to transfer the value from one symbol to another.
+Symbol.d
+% VarClass: Class Var: Symbol {
+...
+
+%—
+
+%}
+Symbol.dc
+
+
+void move (_self, _from);
+
+% Var move {
+%casts
+setvalue(self, from —> value);
+}
+
+
+% : Const move {	// don’t respondTo move
+}
+% Fun move {
+%casts
+setfun(self, from —> fun), from —> fun = 0;
+}
+Var and Fun are willing to move(), but Const is not. move() is similar to a shallow copy operation: for a Fun which points to an expression, it transfers the pointer but does not copy the entire expression. move() actually clears the source pointer so that the source object may be deleted without destroying the transferred expres- sion.
+
+12.2Storing Objects — puto()
+puto() is an Object method which writes the representation of an object to a FILE
+pointer and returns the number of bytes written.
+Object.d
+% Class Object {
+...
+
+%—
+
+Object.dc
+
+
+int puto (const _self, FILE * fp);	// display
+
+% Object puto {
+%casts
+class = classOf(self);
+return fprintf(fp, "%s at %p\n", class —> name, self);
+}
+As we shall see in section 12.3, it is essential that the output starts with the class name of the object. Emitting the object’s address is not strictly necessary.
+While each subclass is free to implement its own version of puto(), the easiest solution is to let puto() operate just like a constructor, i.e., to cascade calls up the superclass chain all the way back to Object_puto() and thus guarantee that the out- put starts with the class name and picks up the instance information from each class involved. This way each puto method only needs to worry about the informa- tion that is added in its own class and not about the complete content of an object. Consider a Var and a Symbol:
+% Var puto {
+int result;
+%casts
+result = super_puto(Var(), _self, fp);
+return result + fprintf(fp, "\tvalue %g\n", self —> value);
+}
+
+12.2Storing Objects — ‘‘puto()’’
+
+% Symbol puto { int result;
+%casts
+result = super_puto(Symbol(), _self, fp);
+return result + fprintf(fp, "\tname %s\n\tlex %d\n",
+self —> name, self —> lex);
+
+149
+
+}
+This produces something like the following output:
+Var at 0x50ecb18	Object
+name x	Symbol
+lex 118
+value 1	Var
+It is tempting to streamline the code to avoid the int variable:
+% Var puto {	// WRONG
+%casts
+return super_puto(Var(), _self, fp)
++ fprintf(fp, "\tvalue %g\n", self —> value);
+}
+However, ANSI-C does not guarantee that the operands of an operator like + are evaluated from left to right, i.e., we might find the order of the output lines scram- bled.
+Designing the output of puto() is easy for simple objects: we print each com- ponent with a suitable format and we use puto() to take care of pointers to other objects — at least as long as we are sure not to run into a loop.
+A container class, i.e., a class that manages other objects, is more difficult to handle. The output must be designed so that it can be restored properly, especially if an unknown number of objects must be written and read back; unlike save() shown in section 12.1 we cannot rely on end of file to indicate that there are no more objects.
+In general, we need a prefix notation: either we write the number of objects prior to the sequence of actual objects, or we prefix each object by a character such as a plus sign and use, e.g., a period in place of the plus to indicate that there are no more objects. We could use ungetc(getc(fp), fp) to peek at the next character, but if we use the absence of a particular lead character to terminate a sequence, we are effectively relying on other objects not to accidentally break our scheme.
+Fun in our calculator is a different kind of container class: it is a symbol contain- ing an expression composed of Node symbols. puto() outputs the expression tree in preorder, nodes before subtrees; if the degree of each node is known, it can be easily restored from this information:
+% Binary puto { int result;
+%casts
+result = super_puto(Binary(), self, fp); result += puto(left(self), fp);
+return result + puto(right(self), fp);
+}
+
+
+The only catch is a function which references other functions. If we blindly apply puto() to the reference, and if we don’t forbid recursive functions, we can easily get stuck. The Ref and Val classes were introduced to mark symbol table refer- ences in the expression tree. For a reference to a function we only write the func- tion name:
+% Ref puto {
+int result;
+%casts
+result = super_puto(Ref(), self, fp); result += putsymbol(left(self), fp); return result + puto(right(self), fp);
+}
+For reasons that will become clear in the next section, putsymbol() is defined in
+parse.c :
+int putsymbol (const void * sym, FILE * fp)
+{
+return fprintf(fp, "\tname %s\n\tlex %d\n",
+name(sym), lex(sym));
+}
+It is sufficient to write the reference name and token value.
+
+12.3Filling Objects — geto()
+geto() is an Object method which reads information from a FILE pointer and fills an object with it. geto() is applied to the uninitialized object; therefore, its job is quite similar to that of a constructor like ctor(). However, ctor() takes the information for the new object from its argument list; geto() reads it from the input stream.
+Object.d
+% Class Object {
+...
+%—
+:	void * geto (_self, FILE * fp);	// construct from file
+An empty tag is specified by the leading colon because it does not make sense for an initialized object to respondTo the method geto.
+Symbol.dc
+% Var geto {
+struct Var * self = super_geto(Var(), _self, fp);
+if (fscanf(fp, "\tvalue %lg\n", & self —> value) != 1) assert(0);
+return self;
+}
+Var_geto() lets the superclass methods worry about the initial information and sim- ply reads back what Var_puto() has written. Normally, the same formats can be specified for fprintf() in the puto method and for fscanf() in the geto method. However, floating point values reveal a slight glitch in ANSI-C: fprintf() uses %g to
+
+12.4Loading Objects — ‘‘retrieve()’’
+
+151
+
+
+
+convert a double, but fscanf() requires %lg to convert back. Strings usually have to be placed into dynamic memory:
+% Symbol geto {
+struct Symbol * self = super_geto(Symbol(), _self, fp); char buf [BUFSIZ];
+if (fscanf(fp, "\tname %s\n\tlex %d\n",
+buf, & self —> lex) != 2)
+assert(0);
+self —> name = malloc(strlen(buf) + 1); assert(self —> name);
+strcpy((char *) self —> name, buf); return self;
+}
+Normally, geto() reads exactly what the corresponding puto() has written, and just like constructors, both methods call their superclass methods all the way back to Object. There is one very important difference, however: we saw that Object_puto() writes the class name followed by an address:
+Var at 0x50ecb18	Object
+name x	Symbol
+lex 118
+value 1	Var
+Object_geto() is the first method to fill the Var object on input. The class name Var written by puto() must be read and used to allocate a Var object before geto() is called to fill the object, i.e., Object_geto() starts reading just after the class name:
+% Object geto { void * dummy;
+%casts
+if (fscanf(fp, " at %p\n", & dummy) != 1) assert(0);
+return self;
+}
+This is the only place where geto and puto methods do not match exactly. The variable dummy is necessary: we could avoid it with the format element %*p, but then we could not discover if the address really was part of the input.
+
+12.4Loading Objects — retrieve()
+Who reads the class name, allocates the object, and calls geto() to fill it? Perhaps strangely, this is accomplished by the function retrieve() which is declared in the class description file Object.d, but which is not a method:
+void * retrieve (FILE * fp);	// object from file
+retrieve() reads a class name as a string from a stream; somehow finds the appropriate class description pointer; uses allocate() to create room for the object; and asks geto() to fill it. Because allocate() inserts the final class description pointer, geto() can actually be applied to the allocated area:
+
+
+struct classList { const char * name; const void * class; };
+void * retrieve (FILE * fp)
+{	char buf [BUFSIZ];
+static struct classList * cL;	// local copy
+static int cD = —1;	// # classes
+if (cD < 0)
+... build classList in cL[0..cD—1] ...
+if (! cD)
+fputs("no classes known\n", stderr);
+else if (fp && ! feof(fp) && fscanf(fp, "%s", buf) == 1)
+{	struct classList key, * p;
+key.name = buf;
+if (p = bsearch(& key, cL, cD, sizeof key,
+(int (*) (const void *, const void *)) cmp)) return geto(allocate(p —> class), fp);
+fprintf(stderr, "%s: cannot retrieve\n", buf);
+}
+return 0;
+}
+retrieve() needs a list of class names and class description pointers. The class descriptions point to the methods and selectors, i.e., the list actually guarantees that the code for the classes is bound with the program using retrieve(). If the data for an object is read in, the methods for the object are available in the program — geto() is just one of them.
+Where does the class list come from? We could craft one by hand, but in chapter 9 we looked at munch, a simple awk program to extract class names from a listing of object modules produced by nm. Because nm can be applied to a library of object modules, we can even extract the class list supported by an entire library. The result is an array classes[] with a list of pointers to the class initialization func- tions, alphabetically sorted by class names.
+retrieve() could search this list by calling each function to receive the initialized class description and applying nameOf() to the result to get the string representa- tion of the class name. This is not very efficient if we have to retrieve many objects. Therefore, retrieve() builds a private list as follows:
+extern const void * (* classes[]) (void);	// munch
+if (cD < 0)
+{	for (cD = 0; classes[cD]; ++ cD)
+;	// count classes
+if (cD > 0)	// collect name/desc
+{	cL = malloc(cD * sizeof(struct classList)); assert(cL);
+for (cD = 0; classes[cD]; ++ cD) cL[cD].class = classes[cD](), cL[cD].name = nameOf(cL[cD].class);
+}
+}
+
+
+The private class list has the additional advantage that it avoids further calls to the class initialization functions.
+
+12.5Attaching Objects — value Revisited
+Writing and reading a strictly tree-structured, self-contained set of objects can be accomplished with puto(), retrieve(), and matching geto methods. Our calculator demonstrates that there is a problem once a collection of objects is written which references other objects, written in a different context or not written at all. Con- sider:
+$ value
+def sqr = $ * $
+def one = sqr(sin($)) + sqr(cos($)) save one
+The output file one.sym contains references to sqr but no definition:
+$ cat one.sym Fun at 0x50ec9f8
+name one lex 102
+value 10
+=
+Add at 0x50ed168
+User at 0x50ed074	Ref
+name sqr	putsymbol
+lex 102
+Builtin at 0x50ecfd0	Ref
+name sin	putsymbol
+lex 109
+Parm at 0x50ecea8	Val
+name one	putsymbol
+lex 102
+User at 0x50ed14c name sqr
+lex 102
+Builtin at 0x50ed130 name cos
+lex 109
+Parm at 0x50ed118 name one
+lex 102
+User is a Ref, and Ref_puto() has used putsymbol() in parse.c to write just the symbol name and token value. This way, the definition for sqr() is intentionally not stored into one.sym.
+Once a symbol table reference is read in, it must be attached to the symbol table. Our calculator contains a single symbol table table which is created and managed in parse.c , i.e., a reference from the expression tree to the symbol table must employ getsymbol() from parse.c to attach the reference to the current sym-
+
+
+bol table. Each kind of reference employs a different subclass of Node so that the proper subclass of Symbol can be found or created by getsymbol(). This is why we must distinguish Global as a reference to a Var and Parm as a reference to a Fun, from where the parameter value is fetched.
+% Global geto {
+struct Global * self = super_geto(Global(), _self, fp);
+down(self) = getsymbol(Var(), fp); return self;
+}
+% Parm geto {
+struct Parm * self = super_geto(Parm(), _self, fp);
+down(self) = getsymbol(Fun(), fp); return self;
+}
+Similarly, Assign looks for a Var; Builtin looks for a Math; and User looks for a Fun. They all employ getsymbol() to find a suitable symbol in table, create one, or complain if there is a symbol with the right name but the wrong class:
+void * getsymbol (const void * class, FILE * fp)
+{	char buf [BUFSIZ]; int token;
+void * result;
+if (fscanf(fp, "\tname %s\n\tlex %d\n", buf, & token) != 2) assert(0);
+result = screen(table, buf, UNDEF); if (lex(result) == UNDEF)
+install(table, result =
+new(class, name(result), token)); else if (lex(result) != token)
+{	fclose(fp);
+error("%s: need a %s, got a %s",
+buf, nameOf(class), nameOf(classOf(result)));
+}
+return result;
+}
+It helps that when a Fun symbol is created we need not yet supply the defining expression:
+$ value load one one(10)
+undefined function
+one() tries to call sqr() but this is undefined.
+let sqr = 9 bad assignment
+An undefined Symbol could be overwritten and assigned to, i.e., sqr() really is an undefined function.
+
+
+def sqr = $ * $ one(10)
+1
+def sqr = 1 one(10)
+2
+Here is the class hierarchy of the calculator with most method definitions. Meta- classes have been omitted; boldface indicates where a method is first defined.
+
+CLASS	DATA	METHODS
+
+Object	magic, ...	% classOf , ...
+%- delete, puto, geto, ...
+%+ new
+Node	% sunder
+%- delete, exec
+%+ new, reclaim
+Number	value	%- ctor, puto, geto, exec Monad	down	%- ctor
+Val	%- puto, exec
+Global	%- geto
+Parm	%- geto
+Unary	%- dtor, puto, geto Minus	%- exec
+Dyad	left, right	%- ctor
+Ref	%- dtor, puto
+Assign	%- geto, exec
+Builtin	%- geto, exec
+User	%- geto, exec
+Binary	%- dtor, puto, geto Add	%- exec
+Sub	%- exec
+Mult	%- exec
+Div	%- exec
+Symbol	name, lex	% name, lex
+%- ctor, puto, geto
+Reserved	%- delete
+Var	value	% value, setvalue
+%- puto, geto, move
+Const	%- ctor, delete, move
+Fun	fun	% setfun, funvalue
+%- puto, geto, move
+Math	fun	% mathvalue
+%- ctor, delete
+Symtab	buf, ...	% save, load, ...
+%- ctor, puto, delete
+
+
+A slight blemish remains, to be addressed in the next chapter: getsymbol() apparently knows enough to close the stream fp before it uses error() to return to the main loop.
+
+12.6Summary
+Objects are called persistent, if they can be stored in files to be loaded later by the same or another application. Persistent objects can be stored either by explicit actions, or implicitly during destruction. Loading takes the place of allocation and construction.
+Implementing persistence requires two dynamically linked methods and a func- tion to drive the loading process:
+int puto (const _self, FILE * fp); void * geto (_self, FILE * fp); void * retrieve (FILE * fp);
+puto() is implemented for every class of persistent objects. After calling up the superclass chain it writes the class’ own instance variables to a stream. Thus, all information about an object is written to the stream beginning with information from the ultimate superclass.
+geto() is also implemented for all persistent objects. The method is normally symmetric to puto(), i.e., after calling up the superclass chain it fills the object with values for the class’ own instance variables as recorded by puto() in the stream. geto() operates like a constructor, i.e., it does not allocate its object, it merely fills it.
+Output produced by puto() starts with the class name of the object. retrieve() reads the class name, locates the corresponding class description, allocates memory for an object, and calls geto() to fill the object. As a consequence, while puto() in the ultimate superclass writes the class name of each object, geto() starts reading after the class name. It should be noted that retrieve() can only load objects for which it knows class descriptions, i.e., with ANSI-C, methods for per- sistent objects must be available a priori in a program that intends to retrieve() them.
+Apart from an initial class name, there is no particular restriction on the output format produced by puto(). However, if the output is plain text, puto() can also aid in debugging, because it can be applied to any object with a suitable debugger.
+For simple objects it is best to display all instance variable values. For container objects pointing to other objects, puto() can be applied to write the client objects. However, if objects can be contained in more than one other object, puto() or retrieve() must be designed carefully to avoid the effect of a deep copy, i.e., to make sure that the client objects are unique. A reasonably foolproof solution for loading objects produced by a single application is for retrieve() to keep a table of the original addresses of all loaded objects and to create an object only, if it is not already in the table.
+
+12.7Exercises
+
+12.7 Exercises
+
+157
+
+If retrieve() keeps track of the original address of each object and constructs only new ones, we need a way to skip along the stream to the end of an object.
+System V provides the functions dlopen(), dlsym(), and dlclose() for dynamic loading of shared objects. retrieve() could employ this technology to load a class module by name. The class module contains the class description together with all methods. It is not clear, however, how we would efficiently access the newly loaded selectors.
+value can be extended with control structures so that functions are more powerful. In this case stmt() needs to be split into true statements such as let and commands like save, load, or def.
+
+159
+
+13
+Exceptions Disciplined Error Recovery
+
+Thirteen seems quite appropriate as the chapter number for coping with misfor- tune. If we get lost inside a single function, the much maligned goto is a boon for bailing out. ANSI-C’s setjmp() and longjmp() do away with a nest of function activations if we discover a problem deep inside. However, if cleanup operations must be inserted at various levels of a bailout we need to harness the crude approach of setjmp().
+
+13.1Strategy
+If our calculator has trouble loading a function definition we run into a typical error recovery problem: an open stream has to be closed before we can call error() to produce a message and return to the main loop. The following picture indicates that a simple risky action should be wrapped into some error handling logic:
+
+on error
+	risky action
+error handler	
+First, an error handler is set up. Either the risky action completes correctly or the error handler gets a chance to clean up before the compound action completes. In ANSI-C, setjmp() and longjmp() are used to implement this error recovery scheme:
+#include <setjmp.h>
+static jmp_buf onError; static void cause() {
+longjmp(onError, 1);
+}
+action () {
+if (! setjmp(onError))
+risky action
+
+else
+
+}
+
+
+error handler
+
+setjmp() initializes onError and returns zero. If something goes wrong in risky action, or in a function called from there, we signal the error by calling cause(). The longjmp() in this function uses the information in onError to effect a second return from the call to setjmp() which initialized onError. The second return delivers the second argument of longjmp() as a function value; one is returned if this value is zero. Things go horribly wrong if the function which called setjmp() is no longer active.
+
+
+In the terminology of the picture above, on error refers to calling setjmp() to deposit the information for error handling. risky action is executed if setjmp() returns zero; or otherwise, error handler is executed. cause() is called to initiate error recovery by transferring control to error handler.
+We have used this simple model to recover from syntax errors deep inside recursive descent in our calculator. Things get more complicated if error handlers must be nested. Here is what happens during a load operation in the calculator:
+
+In this case we need two longjmp() targets for recovery: onError returns to the main loop and onLoadError is used to clean up after a bad loading operation:
+jmp_buf onError, onLoadError; #define cause(x)	longjmp(x, 1)
+mainLoop () {
+if (! setjmp(onError)) loadFile();
+
+else
+
+}
+
+some problem
+
+loadFile () {
+if (! setjmp(onLoadError))
+work with file
+
+else
+
+
+}
+
+
+close file
+cause(onError);
+
+The code sketch shows that cause() somehow needs to know how far recovery should go. We can use an argument or a hidden global structure for this purpose.
+If we give cause() an explicit argument, it is likely that it has to refer to a global symbol so that it may be called from other files. Obviously, the global symbol must not be used at the wrong time. It has the additional drawback that it is part of the client code, i.e., while the symbol is only meaningful for a particular error handler, it is written into the code protected by the handler. If this code is called from some other place, we have to make sure that it does not inadvertently refer to an inactive recovery point.
+
+13.2Implementation — ‘‘Exception’’
+
+161
+
+
+
+A much better strategy is a stack of jmp_buf values. A function establishes an error handler by pushing this stack, and cause() uses the top entry. Of course, the error handler has to be popped from the stack before the corresponding function terminates.
+
+13.2Implementation — Exception
+Exception is a class that provides nestable exception handling. Exception objects must be deleted in the reverse order of their creation. Normally, the newest object represents the error handler which receives control from a call to cause().
+// new(Exception()) #include <setjmp.h>
+void cause (int number);	// if set up, goto catch()
+% Class Exception: Object {
+int armed;	// set by a catch()
+jmp_buf label;	// used by a catch()
+%
+void * catchException (_self);
+%}
+new(Exception()) creates an exception object which is pushed onto a hidden stack of all such objects:
+#include "List.h" static void * stack;
+% Exception ctor {
+void * self = super_ctor(Exception(), _self, app);
+if (! stack)
+stack = new(List(), 10); addLast(stack, self);
+return self;
+}
+We use a List object from section 7.7 to implement the exception stack.
+Exception objects must be deleted exactly in the opposite order of creation.
+The destructor pops them from the stack:
+% Exception dtor { void * top;
+%casts
+assert(stack);
+top = takeLast(stack); assert(top == self);
+return super_dtor(Exception(), self);
+}
+An exception is caused by calling cause() with a nonzero argument, the exception code. If possible, cause() will execute a longjmp() to the exception object on top of the stack, i.e., the most recently created such object. Note that cause() may or may not return to its caller.
+
+
+void cause (int number) { unsigned cnt;
+if (number && stack && (cnt = count(stack)))
+{	void * top = lookAt(stack, cnt—1);
+struct Exception * e = cast(Exception(), top);
+if (e —> armed)
+longjmp(e —> label, number);
+}
+}
+cause() is a function, not a method. However, it is implemented as part of the implementation of Exception and it definitely has access to the internal data of this class. Such a function is often referred to as a friend of the class.
+cause() employs a number of safeguards: the argument must not be zero; the exception stack must exist, must contain objects, and the top object must be an exception; and finally, the exception object must have been armed to receive the exception. If any of the safeguards fails, cause() returns and its caller must cope with the situation.
+An exception object must be armed before it can be used, i.e., the jmp_buf information must be deposited with setjmp() before the object will be used by cause(). For several reasons, creating and arming the object are two separate operations. An object is usually created with new(), and the object is the result of this operation. An exception object must be armed with setjmp(), and this function will return two integer values: first a zero, and the second time the value handed to longjmp(). It is hard to see how we could combine the two operations.
+More importantly, ANSI-C imposes severe restrictions as to where setjmp() may be called. It has to pretty much be specified alone as an expression and the expression can only be used as a statement or to govern a loop or selection state- ment. An elegant solution for arming an exception object is the following macro, defined in Exception.d:
+#define catch(e)	setjmp(catchException(e))
+catch() is used where setjmp() would normally be specified, i.e., the restrictions imposed by ANSI-C on setjmp() can be observed for catch(). It will later return the value handed to cause(). The trick lies in calling the method catchException() to supply the argument for setjmp():
+% catchException {
+%casts
+self —> armed = 1; return self —> label;
+}
+catchException() simply sets .armed and returns the jmp_buf so that setjmp() can initialize it. According to the ANSI-C standard, jmp_buf is an array type, i.e., the name of a jmp_buf represents its address. If a C system erroneously defined jmp_buf as a structure, we would simply have to return its address explicitly. We do not require catch() to be applied to the top element on the exception stack.
+
+13.3Examples
+
+13.3 Examples
+
+163
+
+In our calculator we can replace the explicit setjmp() in parse.c with an exception object:
+int main (void)
+{	volatile int errors = 0; char buf [BUFSIZ];
+void * retry = new(Exception());
+...
+if (catch(retry))
+{	++ errors; reclaim(Node(), delete);
+}
+while (gets(buf))
+...
+Causing an exception will now restart the main loop. error() is modified so that it ends by causing an exception:
+void error (const char * fmt, ...)
+{	va_list ap;
+va_start(ap, fmt);
+vfprintf(stderr, fmt, ap), putc(’\n’, stderr); va_end(ap);
+cause(1); assert(0);
+}
+error() is called for any error discovered in the calculator. It prints an error message and causes an exception which will normally directly restart the main loop. How- ever, while Symtab executes its load method, it nests its own exception handler:
+% Symtab load { FILE * fp; void * in;
+void * cleanup;
+...
+if (! (fp = fopen(fnm, "r"))) return EOF;
+cleanup = new(Exception()); if (catch(cleanup))
+{	fclose(fp); delete(cleanup); cause(1); assert(0);
+}
+while (in = retrieve(fp))
+...
+fclose(fp); delete(cleanup); return result;
+}
+
+
+We saw in section 12.5 that we have a problem if load() is working on an expres- sion and if getsymbol() cannot attach a name to the appropriate symbol in table:
+else if (lex(result) != token) error("%s: need a %s, got a %s",
+buf, nameOf(class), nameOf(classOf(result)));
+All it takes now is to call error() to print a message. error() causes an exception which is at this point caught through the exception object cleanup in load(). In this handler it is known that the stream fp must be closed before load() can be ter- minated. When cleanup is deleted and another exception is caused, control finally reaches the normal exception handler established with retry in main() where super- fluous nodes are reclaimed and the main loop is restarted.
+This example demonstrates it is best to design cause() as a function which only passes an exception code. error() can be called from different protected contexts and it will automatically return to the appropriate exception handler. By deleting the corresponding exception object and calling cause() again, we can trigger all handlers up the chain.
+Exception handling smells of goto with all its unharnessed glory. The following, gruesome example uses a switch and two exception objects to produce the output
+$ except caused —1
+caused 1
+caused 2
+caused 3
+caused 4
+Here is the code; extra points are awarded if you trace it with a pencil...
+int main ()
+{	void * a = new(Exception()), * b = new(Exception()); cause(—1); puts("caused —1");
+switch (catch(a)) { case 0:
+switch (catch(b)) { case 0:
+cause(1); assert(0); case 1:
+puts("caused 1");
+cause(2); assert(0); case 2:
+puts("caused 2"); delete(b);
+cause(3); assert(0); default:
+assert(0);
+}
+
+13.4 Summary
+
+case 3:
+puts("caused 3"); delete(a); cause(4);
+break; default:
+assert(0);
+
+165
+
+}
+puts("caused 4");
+return 0;
+}
+This code is certainly horrible and incomprehensible. However, if exception handling is used to construct the package shown at the beginning of this chapter
+
+on error
+	risky action
+error handler	
+we still maintain a resemblance of the one entry, one exit paradigm for control structures which is at the heart of structured programming. The Exception class provides a clean, encapsulated mechanism to nest exception handlers and thus to nest one protected risky action inside another.
+
+13.4Summary
+Modern programming languages like Eiffel or C++ support special syntax for excep- tion handling. Before a risky action is attempted, an exception handler is esta- blished. During the risky action, software or hardware (interrupts, signals) can cause the exception and thus start execution of the exception handler. Theoreti- cally, upon completion of the exception handler there are three choices: terminate both, the exception handler and the risky action; resume the risky action immedi- ately following the point where the exception was caused; or retry that part of the risky action which caused the exception.
+In practice, the most likely choice is termination and that may be the only choice which a programming language supports. However, a language should definitely support nesting the ranges where an exception handler is effective, and it must be possible to chain exception handling, i.e., when one exception handler ter- minates, it should be possible to invoke the next outer handler.
+Exception handling with termination can easily be implemented in ANSI-C with setjmp(). Exception handlers can be nested by stacking the jmp_buf information set up by setjmp() and used by longjmp(). A stack of jmp_buf values can be managed as objects of an Exception class. Objects are created to nest exception handlers, and they must be deleted in the opposite order. An exception object is armed with catch(), which will return a second time with the nonzero exception code. An exception is caused by calling cause() with the exception code that should be delivered to catch() for the newest exception object.
+
+
+13.5Exercises
+It seems likely that one could easily forget to delete some nested exceptions. Therefore, Exception_dtor() could implicitly pop exceptions from the stack until it finds self. Is it a good idea to delete() them to avoid memory leaks? What should happen if self cannot be found?
+Similarly, catch() could search the stack for the nearest armed exception.
+Should it pop the unarmed ones?
+setjmp() is a dangerous feature, because it does not guard against attempting to return into a function that has itself returned. Normally, ANSI-C uses an activa- tion record stack to allocate local variables for each active function invocation. Obvi- ously, cause() must be called at a higher level on that stack than the function it tries to longjmp() into. If catchException() passes the address of a local variable of its caller, we could store it with the jmp_buf and use it as a coarse verification of the legality of the longjmp(). A fancier technique would be to store a magic number in the local variable and check if it is still there. As a nonportable solution, we might be able to follow a chain along the activation record stack and check from cause() if the stack frame of the caller of catchException() is still there.
