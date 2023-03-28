@@ -1,0 +1,532 @@
+8
+Dynamic Type Checking Defensive Programming
+动态类型检查    
+防御性编程    
+
+
+8.1Technique
+Every object is accessed as void *. While this simplifies writing code, it does invite disaster: manipulating a non-object or the wrong object in a method, or worse, selecting a method from a class description that does not contain it, will cause sig- nificant amounts of grief. Let us trace a call to a dynamically linked method. new() produces a circle and the selector draw() is applied to it:
+void * p = new(Circle, 1, 2, 3); draw(p);
+The selector believes and dereferences the result of classOf():
+void draw (const void * _self) {
+const struct PointClass * class = classOf(_self);
+assert(class —> draw); class —> draw(_self);
+}
+The selected method believes and dereferences _self, which is the original pointer value produced by new():
+static void Circle_draw (const void * _self) { const struct Circle * self = _self;
+printf("circle at %d,%d rad %d\n", x(self), y(self), self —> rad);
+}
+classOf() also believes and dereferences a pointer. As a small consolation, it makes sure that its result is not a null pointer:
+const void * classOf (const void * _self) { const struct Object * self = _self;
+assert(self);
+assert(self —> class); return self —> class;
+}
+In general, every assignment of a generic void * value to a pointer to some structure is suspect to begin with, and its legality ought to be verified. We have designed our methods to be polymorphic, i.e., the ANSI-C compiler cannot perform this check for us. We have to invent a dynamic type checking facility which closely limits how much damage a stray object or non-object can do.
+Fortunately, our void * values know what they are pointing to: they point to objects, which all inherit from Object and, therefore, contain the component .class
+
+
+pointing to their class description. Each class description is unique; therefore, the pointer value in .class can be used to determine if an object belongs to a particular class:
+int isA (const _self, const Class @ class); int isOf (const _self, const Class @ class);
+These are two new, statically linked methods for Object and thus for any object: isA() is true if an object directly belongs to a specific class; isOf() is true if an object is derived from a specific class. The following axioms hold:
+isA(0, anyClass)	always false isOf(0, anyClass)	always false isOf(x, Object)	true for all objects
+It turns out that yet another static method for Object is even more useful:
+void * cast (const Class @ class, const _self);
+If isOf(_self, class) is true, cast() returns its argument _self, otherwise cast() ter- minates the calling process.
+cast() is now going to replace assert() for most of our damage control. Wher- ever we are not so sure, we can wrap cast() around a dubious pointer to limit the damage which an unexpected value could do:
+cast(someClass, someObject);
+The function is also used for safely dereferencing pointers upon import to a method or selector:
+struct Circle * self = cast(Circle, _self);
+Notice that the parameters of cast() have the natural order for a casting operation: the class is written to the left of the object to be casted. isOf(), however, takes the same parameters in opposite order because in an if statement we would ask if an object ‘‘is of’’ a particular class.
+Although cast() accepts _self with a const qualifier, it returns the value without const to avoid error messages on assignment. The same pun happens to be in the ANSI-C standard: bsearch() delivers a void * result for a table passed as const void *.
+
+8.2An Example — list
+As an example of what we can do with isOf() and how safe cast() can be made, consider the following modification of the test program in section 7.7:
+#include "Circle.h" #include "List.h"
+int main (int argc, char ** argv)
+{	void * q; unsigned n;
+initList(); initCircle();
+
+8.2An Example — ‘‘list’’	93
+q = new(List, 1); while (* ++ argv)
+switch (** argv) { case ’+’:
+switch ((* argv)[1]) { case ’c’:
+addFirst(q, new(Circle, 1, 2, 3)); break;
+case ’p’:
+addFirst(q, new(Point, 4, 5)); break;
+default:
+addFirst(q, new(Object));
+}
+break; case ’—’:
+puto(takeLast(q), stdout); break;
+case ’.’:
+n = count(q); while (n —— > 0)
+{	const void * p = takeFirst(q);
+if (isOf(p, Point)) draw(p);
+else
+puto(p, stdout);
+addLast(q, p);
+}
+break; default:
+if (isdigit(** argv))
+addFirst(q, (void *) atoi(* argv));
+
+else
+
+}
+
+
+addFirst(q, * argv + 1);
+
+return 0;
+}
+For arguments starting with + this program will add circles, points, or plain objects to a list. The argument  will remove the last object and display it with puto(). The argument . will display the current contents of the list; draw() is used if an entry is derived from Point. Finally, there is a deliberate attempt to place numbers or other strings as arguments into the list although they would cause problems once they were removed. Here is a sample output:
+$ list +c +p + — . 1234 Circle at 0x122f4 Object at 0x12004
+"." at 4,5
+Object.c:66: failed assertion `sig == 0’
+
+
+As we shall see in section 8.4, addFirst() uses cast() to make sure it only adds objects to the list. cast() can even be made robust enough to discover that a number or a string tries to pose as an object.
+
+8.3Implementation
+With the axioms above, the methods isA() and isOf() are quite simple to imple- ment:
+% isA {
+return _self && classOf(_self) == class;
+}
+% isOf {
+if (_self)
+{	const struct Class * myClass = classOf(_self);
+if (class != Object)
+while (myClass != class) if (myClass != Object)
+myClass = super(myClass);
+
+else
+
+return 1;
+}
+
+
+return 0;
+
+return 0;
+}
+A first, very naive implementation of cast() would be based on isOf():
+% cast {
+assert(isOf(_self, class)); return (void *) _self;
+}
+isOf(), and therefore cast(), fails for null pointers. isOf() believes without further inquiry that any pointer points at least to an instance of Object; therefore, we can be sure that cast(Object, x) will only fail for null pointers. However, as we shall see in section 8.5, this solution can easily backfire.
+
+8.4Coding Standard
+The basic idea is to call cast() as often as necessary. When a statically linked method dereferences objects in its own class, it should do so with cast():
+void move (void * _self, int dx, int dy) { struct Point * self = cast(Point, _self);
+self —> x += dx, self —> y += dy;
+}
+If such a method receives objects from another class, it can still call cast() to make sure that the parameters are what they claim to be. We have introduced the
+%casts request of ooc to handle the import of a parameter list:
+
+
+% move {
+%casts
+self —> x += dx, self —> y += dy;
+}
+%casts is implemented with the report casts in etc.rep; therefore, we can control all object imports by changing this report. The original version was shown in sec- tion 7.4; here is how we introduce cast():
+% casts	// implement %casts request
+`{()	// import
+`{if `_ _
+`t `const struct `cast * `name = ` \
+cast( `cast , _ `name ); `n
+`}fi
+`}n
+`{if `linkage %	// for static linkage only
+`%checks
+`}fi
+The replacement `_ is defined as an underscore if the current parameter was speci- fied with a leading underscore, i.e., if it is in the current class. Instead of a plain assignment, we call cast() to check before we dereference the pointer.
+The first loop at import takes care of all the object in a method’s own class.
+The other objects are checked in the report checks:
+% checks	// check all other object parameters
+`{()
+`{ifnot `cast ` `{ifnot `_ _
+`t cast( `cast , `name ); `n
+`}fi `}fi
+`}n
+Originally, this loop generated assert() for all objects. Now we can restrict our attention to those objects which are not in the current class. For them we generate a call to cast() to make sure they are in their proper class.
+The report casts differentiates between methods with static and dynamic link- age. Statically linked methods need to do their own checking. casts and checks generate local variables for dereferencing and statements to check the other objects, i.e., %casts must be used at the end of the list of local variables declared at the top of a method body with static linkage.
+Dynamically linked methods are only called through selectors; therefore, the job of checking can mostly be delegated to them. %casts is still used to dereference the parameter objects in the current class, but it will only initialize local variables:
+Circle.dc
+% Circle draw {
+%casts
+printf("circle at %d,%d rad %d\n", x(self), y(self), self —> rad);
+}
+
+
+
+Point.c
+
+
+
+Circle.c
+
+
+
+void draw (const void * _self) {
+const struct Point * self = _self;
+...
+
+static void Circle_draw (const void * _self) {
+const struct Circle * self = cast(Circle, _self);
+...
+
+We have to be careful: while the selector could check if an object belongs to the current class Point, once it calls a subclass method like Circle_draw() we have to check there whether or not the object really is a Circle. Therefore, we let the selec- tor check the objects which are not in the current class, and we let the dynamically linked method check the objects in its own class. casts simply omits the call to checks for methods which are called through a selector.
+Now we have to modify the selectors. Fortunately, they are all generated by the report init, but there are several cases: selectors with a void result do not return the result of the actual method; selectors with a variable argument list must pass a pointer to the actual method. init calls the report selectors in etc.rep which in turn delegates the actual work to the report selector and various subreports. Here is a typical selector:
+int differ (const void * _self, const void * b) { int result;
+const struct Class * class = classOf(_self);
+assert(class —> differ); cast(Object, b);
+result = class —> differ(_self, b); return result;
+}
+This is generated by the report selector in etc.rep:*
+`%header { `n
+`%result
+`%classOf
+`%ifmethod
+`%checks
+`%call
+`%return
+} `n `n
+The reports result and return define and return the result variable, unless the return type is void:
+% result	// if necessary, define result variable
+`{ifnot `result void
+`t `result result;
+`}n
+
+* The actual report is slightly more complicated to account for methods with a variable parameter list.
+
+
+% return	// if necessary, return result variable
+`{ifnot `result void
+`t return result;
+`}n
+The report ifmethod checks if the desired method exists:
+% ifmethod	// check if method exists
+`t assert(class  —> `method ); `n
+We have to be a bit careful with the report classOf: if a selector retrieves a method from Class we can rely on classOf() to produce a suitable class description, but for subclasses we have to check:
+
+`{if `meta	`metaroot	
+`t const	struct `meta * class	=	classOf(_self); `n
+`} `{else			
+`t const	struct `meta * class	=	` \
+	cast( `meta	,	classOf(_self)); `n
+`} `n			
+The superclass selector is similar. Here is a typical example:
+int super_differ (const void * _class, const void * _self,
+const void * b) { const struct Class * superclass = super(_class);
+cast(Object, b);
+assert(superclass —> differ);
+return superclass —> differ(_self, b);
+}
+Once again, if we don’t work with Class we need to check the result of super(). Here is the report from etc.rep:
+% super—selector	// superclass selector
+`%super—header  { `n
+`{if `meta `metaroot	// can use super()
+`t const struct `meta * superclass  = super(_class); `n
+`} `{else	// must cast
+`t const struct `meta * superclass  = ` \
+cast( `meta , super(_class)); `n
+`} `n
+`%checks
+`t assert(superclass —> `method ); `n
+`t `{ifnot `result void return `} \ superclass —> `method \
+( `{() `_ `name `}, `{ifnot `,... ` , app `} ); `n
+} `n `n
+Other objects are checked with checks as if the superclass selector were a method with static linkage.
+
+
+Thanks to ooc and the reports we have established a defensive coding standard for all methods that we might implement. With the change to all selectors and with the convention of using %casts in all methods, we account for all objects passed as parameters: their pointers are checked upon import to the callee. As a conse- quence, the result of a method can go unchecked because the user of the result is expected to apply cast() to it.
+This is reflected by the convention of using classes in the return types of our methods. For example in List.d:
+Object @ addFirst (_self, const Object @ element);
+addFirst() was shown in section 7.7 and it returns a void *. ooc, however, gen- erates:
+struct Object * addFirst (void * _self, const void * element) { struct List * self = cast(List, _self);
+cast(Object, element);
+...
+return (void *) element;
+}
+struct Object is an incomplete type in an application program. This way the ANSI-C compiler checks that the result of a call to addFirst() is assigned to void * (to be checked later, hopefully) or that it is passed to a method expecting a void * which by our conventions will check it with cast(). In general, by a careful use of classes in the return types of methods, we can use the ANSI-C compiler to check for unlikely assignments. A class is a lot more restrictive than a void *.
+
+8.5Avoiding Recursion
+In section 8.3 we tried to implement cast() as follows:
+% cast {
+assert(isOf(_self, class)); return (void *) _self;
+}
+Unfortunately, this causes an infinite loop. To understand this, let us trace the calls:
+void * list = new(List, 1); void * object = new(Object);
+addFirst(list, object) { cast(List, list) {
+isOf(list, List) { classOf(list) {
+cast(Object, list) { ifOf(list, Object) {
+classOf(list) {
+cast() is based on isOf() which calls classOf() and possibly super(). Both of these methods observe our coding standard and import their parameters with %casts, which in turn calls cast() to check if the arguments are an Object or a Class,
+
+8.5Avoiding Recursion	99
+
+respectively. Our implementation of isOf() in section 8.3 calls classOf() before observing the third axiom that any object at least belongs to Object.
+How strong do we want type checking to be? If we trust our code, cast() is a no-op and could be replaced by a trivial macro. If we don’t trust our code, parame- ters and all other dereferencing operations need to be checked by being wrapped in cast() in all functions. Everybody has to use and then believe cast() and, clearly, cast() cannot employ other functions to do its checking.
+So what does cast(class, object) guarantee? At least the same as isOf(), namely that its object is not a null pointer and that its class description can be traced to the class argument. If we take the code of isOf(), and think defensively, we obtain the following algorithm:
+(_self = self) is an object
+(myClass = self —> class) is an object
+if (class != Object) class is an object
+while (myClass != class) assert(myClass != Object); myClass is a class description myClass = myClass —> super;
+return self;
+The critical parts are in italics: which nonzero pointer represents an object, how do we recognize a class description? One way to distinguish arbitrary pointers from pointers to objects is to let each object start with a magic number, i.e., to add a component .magic to the class description in Object.d:
+% Class Object {
+unsigned long magic;	// magic number
+const Class @ class;	// object’s description
+%
+...
+Once the magic number is set by new() and in the initialization of Class and Object, we check for it with the following macros:
+#define MAGIC	0x0effaced  // magic number for objects
+// efface: to make (oneself) modestly or shyly inconspicuous
+#define isObject(p) \
+( assert(p), \
+assert(((struct Object *) p) —> magic == MAGIC), p )
+Strictly speaking, we need not check that myClass is an object, but the two extra assertions are cheap. If we do not check that class is an object, it could be a null pointer and then we could slip an object with a null pointer for a class description past cast().
+The expensive part is the question whether myClass is a class description. We should not have very many class descriptions and we should know them all, so we could consult a table of valid pointers. However, cast() is one of the innermost functions in our code, so we should make it as efficient as possible. To begin with,
+
+
+myClass is the second element in a chain from an object to its class description and both have already been verified to contain a magic number. If we disregard the problem of stray pointers destroying class descriptions, it is reasonable to assume that the .super chain among the class descriptions remains unharmed after Class_ctor() sets it up. Therefore, we remove the test from the loop altogether and arrive at the following implementation for cast():
+static void catch (int sig)	// signal handler: bad pointer
+{
+assert(sig == 0);	// bad pointer, should not happen
+}
+% cast {
+void (* sigsegv)(int) = signal(SIGSEGV, catch); #ifdef SIGBUS
+void (* sigbus)(int) = signal(SIGBUS, catch); #endif
+const struct Object * self = isObject(_self);
+const struct Class * myClass = isObject(self —> class);
+if (class != Object)
+{	isObject(class);
+while (myClass != class)
+{	assert(myClass != Object); // illegal cast myClass = myClass —> super;
+}
+}
+#ifdef SIGBUS signal(SIGBUS, sigbus);
+#endif
+signal(SIGSEGV, sigsegv); return (void *) self;
+}
+Signal processing protects us from mistaking a numerical value for a pointer. SIG- SEGV is defined in ANSI-C and indicates an illegal memory access; SIGBUS (or
+_SIGBUS) is a second such signal defined by many systems.
+
+8.6Summary
+void * is a very permissive type which we had to resort to in order to construct polymorphic methods and, in particular, our mechanism for the selection of dynami- cally linked methods. Because of polymorphisms, object types need to be checked at runtime, i.e., when an object appears as a parameter of a method.
+Objects point to unique class descriptions; therefore, their types can be checked by comparing their class description pointers to the class descriptions known in a project. We have provided three new methods for this: isA() checks that an object belongs to a specific class, isOf() is true if an object belongs to a class or one of its subclasses, and cast() terminates the calling program if an object cannot be treated as a member of a certain class.
+
+8.7Exercises
+
+101
+
+
+
+As a coding standard we require that cast() is used whenever an object pointer needs to be dereferenced. In particular, methods with static linkage must use cast() on all their object parameters, selectors use it on all object parameters not in their own class, and methods with dynamic linkage use it on all object parameters which claim to be in their own class. Result values need not be checked by their producers, because the consumer can only dereference them by using cast() again.
+ooc provides significant assistance in enforcing this coding standard because it generates the selectors and provides the %casts statement for the import of parameters. %casts generates the necessary calls to cast() and should be used last in the local variable declarations of a method.
+cast() cannot prove the correctness of data. However, we try to make it fairly difficult or improbable for cast() to be defeated. The whole point of defensive pro- gramming is to recognize that programmers are likely to make mistakes and to limit how long a mistake can go unrecognized. cast() is designed to strike a balance between efficiency for correct programs and (early) detection of flaws.
+
+8.7 Exercises
+Technically, superclass selectors can only be used from within methods. We could decide not to check the parameters of superclass selectors. Is that really wise?
+We believe that a pointer identifies an object if the object starts with a magic number. This is expensive because it increases the size of every object. Could we only require that a class description must start with a magic number?
+The fixed part of a class description (name, superclass and size) can be pro- tected with a checksum. It has to be chosen carefully to permit static initialization for Class and Object.
+cast() duplicates the algorithm of isOf(). Can isOf() be changed so that we can use the naive implementation of cast() and not get into an infinite recursion?
+cast() is our most important function for producing error messages. Rather than a simple assert() the messages could contain the point of call, the expected class, and the class actually supplied.
+
+103
+
+9
+Static Construction Self-Organization
+
+
+9.1Initialization
+Class descriptions are long-lived objects. They are constant and they exist practi- cally as long as an application executes. If possible, such objects are initialized at compile time. However, we have decided in chapter 6 that static initialization makes class descriptions hard to maintain: the order of the structure components must agree with all the initializations, and inheritance would force us to reveal dynamically linked methods outside their implementation files.
+For bootstrapping we initialize only the class descriptions Object and Class at compile time as static structures in the file Object.dc. All other class descriptions are generated dynamically and the metaclass constructors beginning with Class_ctor() take care of inheritance and overwriting dynamically linked methods.
+ooc generates initialization functions to hide the details of calling new() to gen- erate class descriptions, but the fact that they must be explicitly called in the appli- cation code is a source of hard to diagnose errors. As an example, consider init- Point() and initCircle() from section 6.10:
+void initPoint (void) { if (! PointClass)
+PointClass = new(Class, "PointClass", Class, sizeof(struct PointClass), ctor, PointClass_ctor,
+0);
+if (! Point)
+Point = new(PointClass, "Point", Object, sizeof(struct Point), ctor, Point_ctor,
+draw, Point_draw, 0);
+}
+The function is designed to do its work only once, i.e., even if it is called repeatedly it will generate a single instance of each class description.
+void initCircle (void) { if (! Circle)
+{	initPoint();
+Circle = new(PointClass, "Circle", Point, sizeof(struct Circle), ctor, Circle_ctor,
+draw, Circle_draw, 0);
+}
+}
+
+
+Both functions implicitly observe the class hierarchy: initPoint() makes sure that PointClass exists before it uses it to generate the description Point; the call to init- Point() in initCircle() guarantees that the superclass description Point and its meta- class description PointClass exist before we use them to generate the description Circle. There is no danger of recursion: initCircle() calls initPoint() because Point is the superclass of Circle but initPoint() will not refer to initCircle() because ooc does not permit cycles in the superclass relationship.
+Things go horribly wrong, however, if we ever forget to initialize a class descrip- tion before we use it. Therefore, in this chapter we look at mechanisms which automatically prevent this problem.
+
+9.2Initializer Lists — munch
+Class descriptions essentially are static objects. They ought to exist as long as the main program is active. This is normally accomplished by creating such objects as global or static variables and initializing them at compile time.
+Our problem is that we need to call Class_ctor() and the other metaclass con- structors to hide the details of inheritance when initializing a class description. Function calls, however, can only happen at execution time.
+The problem is known as static constructor calls — objects with a lifetime equal to the main program must be constructed as soon as main() is executed. There is no difference between generating static and dynamic objects. initPoint() and simi- lar functions simplify the calling conventions and permit calls in any order, but the actual work is in either case done by new() and the constructors.
+At first glance, the solution should be quite trivial. If we assume that every class description linked into a program is really used we need to call every init- function at the beginning of main(). Unfortunately, however, this is not just a source text processing problem. ooc cannot help here because it does not know — intentionally — how classes are put together for a program. Checking the source code does not help because the linker might fetch classes from libraries.
+Modern linkers such as GNU ld permit a compiler to compose an array of addresses where each object module can contribute elements as it is linked into a program. In our case we could collect the addresses of all init-funtions in such an array and modify main() to call each function in turn. However, this feature is only available to compiler makers, not to compiler users.
+Nevertheless, we should take the hint. We define an array initializers[] and arrange things in main() as follows:
+void (* initializers [])(void) = { 0 };
+int main ()
+{	extern void (* initializers [])(void); void (** init)(void) = initializers;
+while (* init)
+(** init ++)();
+...
+
+9.2 Initializer Lists — ‘‘munch’’
+
+105
+
+
+
+All that remains is to specify every initialization function of our program as an ele- ment of initializers[]. If there is a utility like nm which can print the symbol table of a linked program we can use the following approach to generate the array automati- cally:
+$ cc —o task object... libooc.a
+$ nm —p task | munch > initializers.c
+$ cc —o task object... initializers.c libooc.a
+We assume that libooc.a is a library with a module initializers.o which defines the array initializers[] as shown above containing only the trailing null pointer. The library module is only used by the linker if the array has not been defined in a module preceding libooc.a on the command line invoking the compiler.
+nm prints the symbol table of the task resulting from the first compilation. munch is a small program generating a new module initializers.c which references all init-functions in task . In the second compilation the linker uses this module rather than the default module from libooc.a to define the appropriate initializers[] for task .
+Rather than an array, munch could generate a function calling all initialization functions. However, as we shall see in chapter 12, specifically a list of classes can be put to other uses than just initialization.
+The output from nm generally depends on the brand of UNIX used. Luckily, the option p instructs Berkeley-nm to print in symbol table order and System-V-nm to produce a terse output format which happens to look almost like the output from Berkeley-nm. Here is munch for both, implemented using awk:
+NF != 3 || $2 != "T" || $1 !˜ /ˆ[0—9a—fA—F]+$/ { next
+}
+$3 ˜ /ˆ_?init[A —Z][A—Za—z]+$/ { sub(/ˆ_/, "", $3)
+names[$3] = 1
+}
+END {
+for (n in names)
+printf "extern void %s (void);\n", n
+print "\nvoid (* initializers [])(void) = {" for (n in names)
+printf "\t%s,\n", n print "0 };"
+}
+The first condition quickly rejects all symbol table entries except for those such as
+00003ea8 T _initPoint
+Assuming that a name beginning with init and a capital letter followed only by letters refers to an initialization function, an optional initial underscore is stripped (some compilers produce it, others do not) and the rest is saved as index of an array names[]. Once all names have been found, munch generates function declarations and defines initializers[].
+
+
+The array names[] is used because each name must be emitted twice. Names are stored as indices rather than element values to avoid duplication.* munch can even be used to generate the default module for the library:
+$ munch < /dev/null > initializers.c
+munch is a kludge in many ways: it takes two runs of the linker to bind a task correctly; it requires a symbol table dump like nm and it assumes a reasonable out- put format; and, worst of all, it relies on a pattern to select the initialization func- tions. However, munch is usually very easy to port and the selection pattern can be adapted to a variety of static constructor problems. Not surprisingly, the AT&T C++ system has been implemented for some hosts with a (complicated) variant of munch.
+
+9.3Functions for Objects
+munch is a reasonably portable, if inefficient, solution for all conceivable static initial- ization problems. Building class descriptions before they are used is a simple case and it turns out that there is a much easier and completely portable way to accom- plish that.
+Our problem is that we use a pointer variable to refer to an object but we need a function call to create the object if it does not yet exist. This leads to something like the following macro definition:
+#define Point	(Point ? Point : (Point = initPoint()))
+The macro Point checks if the class description Point is already initialized. If not, it calls initPoint() to generate the class description. Unfortunately, if we define Point as a macro without parameters, we can no longer use the same name for the struc- ture tag for objects and for the corresponding class description. The following macro is better:
+#define Class(x)	(x ? x : (x = init ## x ()))
+Now we specify Class(Point) to reference the class description. initPoint() still calls new() as before but it now has to return the generated class description, i.e., each class description needs its own initialization function:
+const void * Point;
+const void * initPoint (void) { return new(Class(PointClass),
+"Point", Class(Object), sizeof(struct Point), ctor, Point_ctor,
+draw, Point_draw, (void *) 0);
+}
+This design still observes the ordering imposed by the class hierarchy: before the class  description  PointClass  is  passed  to  new(),  the  macro  expansion
+
+* Duplication should be impossible to begin with, because a global function cannot be defined twice in one program, but it is always better to be safe rather than sorry.
+
+9.4Implementation
+
+107
+
+
+
+Class(PointClass) makes sure the description exists. The example shows that for uniformity we will have to supply empty functions initObject() and initClass().
+If every initialization function returns the initialized object, we can do without macros and simply call the initialization function whenever we want to access the object — a static object is represented by its initialization function:
+static const void * _Point;
+const void * const Point (void) { return _Point ? _Point :
+(_Point = new(PointClass(),
+"Point", Object(), sizeof(struct Point), ctor, Point_ctor,
+draw, Point_draw, (void *) 0));
+}
+We could move the definition of the actual pointer _Point into the function; how- ever, the global definition is necessary if we still want to implement munch for Sys- tem V.
+Replacing static objects by functions need not be less efficient than using mac- ros. ANSI-C does not permit the declaration of a const or volatile result for a func- tion, i.e., the boldfaced const qualifier in the example.* GNU-C allows such a declaration and uses it during optimization. If a function has a const result its value must depend only on its arguments and the call must not produce side effects. The compiler tries to minimize the number of calls to such a function and reuses the results.
+
+9.4Implementation
+If we choose to replace a class description name such as Point by a call to the ini- tialization function Point() to generate the class descriptions automatically, we have to modify each use of a class description and we need to tweak the ooc reports to generate slightly different files.
+Class description names are used in calls to new(), cast(), isA(), isOf(), and in superclass selector calls. Using functions in place of pointer variables is a new con- vention, i.e., we will have to modify the application programs and the implementa- tion files. A good ANSI-C compiler (or the pedantic option of GNU-C) can be quite helpful: it should flag all attempts to pass a function name to a void * parameter, i.e., it should flag all those points in our C code where we have missed adding an empty argument list to a class name.
+Changing the reports is a bit more difficult. It helps to look in the generated files for references to class descriptions. The representation file Point.r remains unchanged. The interface file Point.h declares the class and metaclass description pointers. It is changed from
+
+*The first const indicates that the result of the function points to a constant value. Only the second
+const indicates that the pointer value itself is constant.
+
+
+extern const void * Point; extern const void * PointClass;
+to
+extern const void * const Point (void); extern const void * const PointClass (void);
+where the boldfaced const can only be used with GNU-C. It helps to have a portable report so we change the relevant lines in h.rep as follows
+extern const void * `%const `class (void); `n `n extern const void * `%const `meta (void); `n `n
+and we add a new report to the common file header.rep:
+% const	// GNUC supports const functions
+`{if `GNUC 1 const `}
+ooc normally defines the symbol GNUC with value zero but by specifying
+$ ooc —DGNUC=1 ...
+we can set this symbol to 1 on the command line and generate better code.
+The implementation file Point.c contains many changes. All calls to cast() are changed; for the most part they are produced by the %casts request to ooc and thus by the casts and checks reports shown in section 8.4. Other calls to cast() are used in some selectors and superclass selectors and in the metaclass construc- tors, but these are generated by reports in etc.rep, c.rep, and c-R.rep . It now pays off that we have used ooc to enforce our coding standard — the standard is easy to change in a single place.
+The significant change is, of course, the new style of initialization functions. Fortunately, these are also generated in c.rep and we derive the new versions by converting Point() as shown in the preceding section to report format in c.rep.
+Finally, we produce default functions such as
+const void * const Object (void) { return & _Object;
+}
+by the init report in c-R.rep so that it can benefit from the GNUC conditional for
+ooc. This is a bit touchy because, as stated in section 7.5, the static initialization of
+_Object must be coded in Object.dc:
+extern const struct Class _Object; 
+extern const struct Class _Class;
+%init
+static const struct Class _Object = {
+{ MAGIC, & _Class },
+"Object", & _Object, sizeof(struct Object), Object_ctor, Object_dtor, Object_differ, Object_puto
+};
+extern introduces forward references to the descriptions. %init generates the functions which reference the descriptions as shown above. static, finally, gives
+
+9.5Summary
+
+109
+
+
+
+internal linkage to the initialized descriptions, i.e., they are still hidden inside the implementation file Object.c.
+As an exception, _Object must be the name of the structure itself and not a pointer to it so that & _Object can be used to initialize the structure. If we do not introduce a macro such as Class(), this makes little difference, but it does compli- cate munch a bit:
+NF != 3 || $1 !˜ /ˆ[0—9a—f]+$/ { next }
+$2 ˜ /ˆ[bs]$/	{ bsd[$3] = 1; next }
+$2 == "d"	{ sysv[$3] = 1; next }
+$2 == "T"	{ T[$3] = 1; next }
+END {
+for (name in T)
+if ("_" name in bsd)	# eliminate leading _ names[n ++] = substr(name, 2)
+else if ("_" name in sysv) names[n ++] = name
+for (i = 0; i < n; ++ i)
+printf "extern const void * %s (void);\n", names[i]
+print "\nconst void * (* classes [])(void) = {" for (i = 0; i < n; ++ i)
+printf "\t%s,\n", names[i] print "0 };"
+}
+A class name should now occur as a global function and with a leading underscore as a local data item. Berkeley-nm flags initialized local data with s and uninitialized data with b, System-V-nm uses d in both cases. We simply collect all interesting symbols in three arrays and match them in the END clause to produce the array names[] which we actually need. There is even an advantage to this architecture: we can insert a simple shellsort [K&R88] to produce the class names in alphabetical order:
+for (gap = int(n/2); gap > 0; gap = int(gap/2)) for (i = gap; i < n; ++ i)
+for (j = i—gap; j >= 0 && \
+names[j] > names[j+gap]; j —= gap)
+{	name = names[j] names[j] = names[j+gap] names[j+gap] = name
+}
+If we use function calls in place of class names we do not need munch; however, a list of the classes in a program may come in handy for some other purpose.
+
+9.5Summary
+Static objects such as class descriptions would normally be initialized at compile time. If we need constructor calls, we wrap them into functions without parame- ters and make sure that these functions are called early enough and in the proper
+
+
+order. In order to avoid trivial but hard to diagnose errors, we should provide a mechanism which performs these function calls automatically — our programs should be self-organizing.
+One solution is to use a linking technique, for example with the aid of a pro- gram such as munch, to produce an array with the addresses of all initialization functions and call each array element at the beginning of a main program. A func- tion main() with a loop executing the array can be part of our project library, and each program starts with a function mainprog() which is called by main().
+Another solution is to let an initialization function return the initialized object. If the function is locked so that it does the actual work only once we can replace each reference to a static object by a call to its initialization function. Alternatively, we can use macros to produce the same effect more efficiently. Either way we can no longer take the address of a reference to a static object, but because the reference itself is a pointer value, this should hardly be necessary.
+
+9.6Exercises
+The Class() macro is a more efficient, portable solution for automatic initialization of class descriptions than using functions. It is implemented by changing reports, class definitions, and application programs just as described above.
+munch may have to be ported to a new system. If it is used together with the Class() macro, for a production system we can remove the conditional from the macro and initialize all class descriptions with munch. How do we initialize things in the right order? Can ooc be used to help here (consult the manual in appendix C about option M for occ)? What about cast() in a production system?
+All class descriptions should first show up in calls to cast(). We can define a fake class
+typedef const void * (* initializer) (void);
+% Class ClassInit: Object { initializer init;
+%}
+and use statically initialized instances as ‘‘uninitialized’’ class descriptions:
+static struct ClassInit _Point = {
+{ MAGIC, 0 },	/* Object without class description */ initPoint	/* initialization function */
+};
+const void * Point = & _Point;
+cast() can now discover a class description with a null class description pointer, assume that it is a struct ClassInit, and call the initialization function. While this solution reduces the number of unnecessary function calls, how does it influence the use of cast()?
